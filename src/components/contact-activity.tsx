@@ -6,7 +6,7 @@ const icons={contact:UserPlus,edit:Pencil,interaction:MessageCircle,reminder:Bel
 export function ContactActivity({contact}:{contact:{
   firstName:string;createdAt:Date;updatedAt:Date;
   interactions:Array<{id:string;type:string;note:string;happenedAt:Date}>;
-  reminders:Array<{id:string;title:string;dueAt:Date;done:boolean;createdAt:Date}>;
+  reminders:Array<{id:string;kind:string;title:string;dueAt:Date;done:boolean;createdAt:Date}>;
   giftIdeas:Array<{id:string;title:string;purchased:boolean;createdAt:Date}>;
   linksFrom:Array<{id:string;createdAt:Date;toContact:{firstName:string;lastName:string}}>;
   linksTo:Array<{id:string;createdAt:Date;fromContact:{firstName:string;lastName:string}}>;
@@ -17,7 +17,7 @@ export function ContactActivity({contact}:{contact:{
   const activities:Activity[]=[
     {id:"created",date:contact.createdAt,title:"Fiche créée",detail:`${contact.firstName} a été ajouté à votre carnet.`,kind:"contact"},
     ...contact.interactions.map(item=>({id:`interaction-${item.id}`,date:item.happenedAt,title:interactionLabel(item.type),detail:item.note||"Échange enregistré sans note.",kind:"interaction" as const})),
-    ...contact.reminders.map(item=>({id:`reminder-${item.id}`,date:item.createdAt,title:item.done?"Rappel terminé":"Rappel créé",detail:`${item.title} · prévu le ${item.dueAt.toLocaleDateString("fr-FR")}`,kind:"reminder" as const})),
+    ...contact.reminders.map(item=>({id:`reminder-${item.id}`,date:item.createdAt,title:item.done?"Rappel terminé":item.kind==="no_contact"?"Consigne de non-contact créée":"Rappel créé",detail:`${item.title} · prévu le ${item.dueAt.toLocaleDateString("fr-FR")}`,kind:"reminder" as const})),
     ...contact.giftIdeas.map(item=>({id:`gift-${item.id}`,date:item.createdAt,title:item.purchased?"Cadeau acheté":"Idée cadeau ajoutée",detail:item.title,kind:"gift" as const})),
     ...contact.linksFrom.map(item=>({id:`link-from-${item.id}`,date:item.createdAt,title:"Personne liée",detail:`Lien créé avec ${item.toContact.firstName} ${item.toContact.lastName}.`,kind:"link" as const})),
     ...contact.linksTo.map(item=>({id:`link-to-${item.id}`,date:item.createdAt,title:"Personne liée",detail:`Lien créé avec ${item.fromContact.firstName} ${item.fromContact.lastName}.`,kind:"link" as const})),

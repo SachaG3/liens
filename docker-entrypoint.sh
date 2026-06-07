@@ -2,6 +2,7 @@
 set -e
 
 echo "🔄 Initializing database..."
+mkdir -p /app/prisma/data/uploads
 npx prisma db push
 
 if [ "${SEED_DEMO_DATA:-false}" = "true" ]; then

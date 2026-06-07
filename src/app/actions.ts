@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { clearSession, createSession, requireUser } from "@/lib/auth";
 import { createMentionLinks } from "@/lib/mentions";
 import { relationTypeOptions } from "@/lib/relation-types";
+import { deleteImage, saveImage } from "@/lib/media";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
@@ -55,7 +56,7 @@ export async function addContact(form: FormData) {
   const contact = await db.contact.create({ data: {
     userId: user.id, firstName, lastName: text(form, "lastName"),
     email: text(form, "email"), phone: text(form, "phone"), company: text(form, "company"),
-    notes: text(form, "notes"), desiredFrequency: Number(text(form, "frequency")) || 30,
+    notes: text(form, "notes"), photo: await saveImage(form.get("photo")), desiredFrequency: Number(text(form, "frequency")) || 30,
     birthday: text(form, "birthday") ? new Date(text(form, "birthday")) : null,
     circles: { create: circles.map(({ id: circleId }) => ({ circleId })) },
     relationTags: { create: relationTags.map(tag=>({tag})) },
@@ -77,7 +78,7 @@ export async function updateContact(form: FormData) {
   await db.contact.update({ where: { id }, data: {
     firstName: text(form, "firstName") || contact.firstName, lastName: text(form, "lastName"),
     email: text(form, "email"), phone: text(form, "phone"), company: text(form, "company"), relationType: "",
-    notes: text(form, "notes"), desiredFrequency: Number(text(form, "frequency")) || 30,
+    notes: text(form, "notes"), photo: await saveImage(form.get("photo"),contact.photo), desiredFrequency: Number(text(form, "frequency")) || 30,
     birthday: text(form, "birthday") ? new Date(text(form, "birthday")) : null,
     circles: { deleteMany: {}, create: circles.map(({ id: circleId }) => ({ circleId })) },
     relationTags: { deleteMany: {}, create: relationTags.map(tag=>({tag})) },
@@ -158,12 +159,55 @@ export async function addContactRelation(form:FormData){
   revalidatePath(`/contacts/${sourceId}`);revalidatePath(`/contacts/${targetId}`);revalidatePath("/map");return true;
 }
 
+export async function addDebt(form:FormData){
+  const user=await requireUser();
+  const contactId=text(form,"contactId"),title=text(form,"title"),direction=text(form,"direction")==="i_owe"?"i_owe":"owed_to_me";
+  const amount=Number(text(form,"amount").replace(",","."));
+  const contact=await db.contact.findFirst({where:{id:contactId,userId:user.id}});
+  if(!contact||!title||!Number.isFinite(amount)||amount<=0)return false;
+  await db.debt.create({data:{userId:user.id,contactId,title,direction,amount,currency:text(form,"currency")||"EUR",note:text(form,"note"),dueAt:text(form,"dueAt")?new Date(text(form,"dueAt")):null}});
+  revalidatePath("/finances");revalidatePath(`/contacts/${contactId}`);return true;
+}
+
+export async function toggleDebt(form:FormData){
+  const user=await requireUser();const debt=await db.debt.findFirst({where:{id:text(form,"id"),userId:user.id}});if(!debt)return;
+  await db.debt.update({where:{id:debt.id},data:{settled:!debt.settled}});revalidatePath("/finances");revalidatePath(`/contacts/${debt.contactId}`);
+}
+
+export async function deleteDebt(form:FormData){
+  const user=await requireUser();const debt=await db.debt.findFirst({where:{id:text(form,"id"),userId:user.id}});if(!debt)return;
+  await db.debt.delete({where:{id:debt.id}});revalidatePath("/finances");revalidatePath(`/contacts/${debt.contactId}`);
+}
+
+export async function addPet(form:FormData){
+  const user=await requireUser();const name=text(form,"name");if(!name)return false;
+  const requestedOwnerIds=[...new Set(form.getAll("ownerIds").map(String))];
+  const owners=await db.contact.findMany({where:{userId:user.id,id:{in:requestedOwnerIds}},select:{id:true}});
+  await db.pet.create({data:{userId:user.id,name,species:text(form,"species")||"Autre",breed:text(form,"breed"),photo:await saveImage(form.get("photo")),birthday:text(form,"birthday")?new Date(text(form,"birthday")):null,notes:text(form,"notes"),owners:{create:owners.map(({id:contactId})=>({contactId}))}}});
+  revalidatePath("/pets");return true;
+}
+
+export async function updatePet(form:FormData){
+  const user=await requireUser();const id=text(form,"id"),name=text(form,"name");
+  const pet=await db.pet.findFirst({where:{id,userId:user.id}});if(!pet||!name)return false;
+  const requestedOwnerIds=[...new Set(form.getAll("ownerIds").map(String))];
+  const owners=await db.contact.findMany({where:{userId:user.id,id:{in:requestedOwnerIds}},select:{id:true}});
+  await db.pet.update({where:{id},data:{name,species:text(form,"species")||"Autre",breed:text(form,"breed"),photo:await saveImage(form.get("photo"),pet.photo),birthday:text(form,"birthday")?new Date(text(form,"birthday")):null,notes:text(form,"notes"),owners:{deleteMany:{},create:owners.map(({id:contactId})=>({contactId}))}}});
+  revalidatePath("/pets");return true;
+}
+
+export async function deletePet(form:FormData){
+  const user=await requireUser();const pet=await db.pet.findFirst({where:{id:text(form,"id"),userId:user.id}});if(!pet)return;
+  await db.pet.delete({where:{id:pet.id}});await deleteImage(pet.photo);revalidatePath("/pets");
+}
+
 export async function addReminder(form: FormData) {
   const user = await requireUser();
   const contactId = text(form, "contactId");
+  const kind = reminderKind(text(form, "kind"));
   const contact = await db.contact.findFirst({ where: { id: contactId, userId: user.id } });
   if (!contact || !text(form, "title") || !text(form, "dueAt")) return false;
-  await db.reminder.create({ data: { contactId, title: text(form, "title"), dueAt: new Date(text(form, "dueAt")) } });
+  await db.reminder.create({ data: { contactId, kind, title: text(form, "title"), dueAt: new Date(text(form, "dueAt")) } });
   revalidatePath("/");
   revalidatePath("/reminders");
   revalidatePath(`/contacts/${contactId}`);
@@ -188,7 +232,7 @@ export async function updateReminder(form: FormData) {
   const title = text(form, "title");
   const dueAt = text(form, "dueAt");
   if (!title || !dueAt) return false;
-  await db.reminder.update({ where: { id }, data: { title, dueAt: new Date(dueAt) } });
+  await db.reminder.update({ where: { id }, data: { kind: reminderKind(text(form, "kind")), title, dueAt: new Date(dueAt) } });
   revalidatePath("/");
   revalidatePath("/reminders");
   revalidatePath(`/contacts/${reminder.contactId}`);
@@ -218,9 +262,14 @@ export async function deleteReminder(form: FormData) {
   revalidatePath(`/contacts/${reminder.contactId}`);
 }
 
+function reminderKind(value:string) {
+  return ["contact","no_contact","other"].includes(value)?value:"contact";
+}
+
 export async function deleteContact(form: FormData) {
   const user = await requireUser();
-  await db.contact.deleteMany({ where: { id: text(form, "id"), userId: user.id } });
+  const contact=await db.contact.findFirst({where:{id:text(form,"id"),userId:user.id}});if(!contact)return;
+  await db.contact.delete({where:{id:contact.id}});await deleteImage(contact.photo);
   revalidatePath("/");
   revalidatePath("/contacts");
 }

@@ -64,7 +64,7 @@ export default async function Contacts({searchParams}:{searchParams:Promise<{rel
   const totalPages=Math.max(1,Math.ceil(totalContacts/ITEMS_PER_PAGE));
   const currentPage=Math.min(Math.max(1,parseInt(page)||1),totalPages);
 
-  const allPeople=contacts.map(c=>({id:c.id,firstName:c.firstName,lastName:c.lastName,email:c.email,phone:c.phone,company:c.company,relationTags:[...new Set([...c.relationTags.map(item=>item.tag),...(c.relationType?[c.relationType]:[])])],lastInteraction:c.interactions[0]?.happenedAt.toISOString()??null,score:relationshipScore(c.interactions[0]?.happenedAt??null,effectiveFrequency(c.desiredFrequency,c.circles.map(({circle})=>circle.frequency))),circles:c.circles.map(({circle})=>circle)}));
+  const allPeople=contacts.map(c=>({id:c.id,firstName:c.firstName,lastName:c.lastName,photo:c.photo,email:c.email,phone:c.phone,company:c.company,relationTags:[...new Set([...c.relationTags.map(item=>item.tag),...(c.relationType?[c.relationType]:[])])],lastInteraction:c.interactions[0]?.happenedAt.toISOString()??null,score:relationshipScore(c.interactions[0]?.happenedAt??null,effectiveFrequency(c.desiredFrequency,c.circles.map(({circle})=>circle.frequency))),circles:c.circles.map(({circle})=>circle)}));
 
   if(sort==="priority"){
     allPeople.sort((a,b)=>a.score-b.score||a.firstName.localeCompare(b.firstName,"fr"));

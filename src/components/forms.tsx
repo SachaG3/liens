@@ -1,8 +1,9 @@
-import { addCircle, addContact, addContactRelation, addConversationItem, addCustomField, addGiftIdea, addImportantDate, addInteraction, addJournalEntry, addReminder, updateContact, updateReminder } from "@/app/actions";
+import { addCircle, addContact, addContactRelation, addConversationItem, addCustomField, addDebt, addGiftIdea, addImportantDate, addInteraction, addJournalEntry, addPet, addReminder, updateContact, updatePet, updateReminder } from "@/app/actions";
 import { CheckPill, FormField, NativeSelect, SubmitButton, TextAreaField, TextField } from "@/components/form-controls";
 import { MentionTextarea } from "@/components/mention-textarea";
 import { ModalForm } from "@/components/modal";
 import { relationTypes } from "@/lib/relation-types";
+import { PhotoEditor } from "@/components/photo-editor";
 
 type MentionPerson={id:string;firstName:string;lastName:string};
 
@@ -17,6 +18,7 @@ export function CircleForm() {
 
 export function ContactForm({ circles, people = [] }: { circles:Array<{id:string;name:string;color:string}>;people?:MentionPerson[] }) {
   return <ModalForm action={addContact} noValidate className="grid gap-4">
+    <PhotoEditor/>
     <div className="grid grid-cols-2 gap-3"><FormField label="Prénom"><TextField name="firstName" required/></FormField><FormField label="Nom"><TextField name="lastName"/></FormField></div>
     <div className="grid grid-cols-2 gap-3"><FormField label="E-mail"><TextField type="email" name="email"/></FormField><FormField label="Téléphone"><TextField name="phone"/></FormField></div>
     <RelationTagField/>
@@ -29,12 +31,13 @@ export function ContactForm({ circles, people = [] }: { circles:Array<{id:string
 }
 
 export function EditContactForm({ contact, circles, people }: {
-  contact:{id:string;firstName:string;lastName:string;email:string;phone:string;company:string;relationType:string;relationTags:Array<{tag:string}>;notes:string;desiredFrequency:number;birthday:Date|null;circles:Array<{circleId:string}>};
+  contact:{id:string;firstName:string;lastName:string;photo:string;email:string;phone:string;company:string;relationType:string;relationTags:Array<{tag:string}>;notes:string;desiredFrequency:number;birthday:Date|null;circles:Array<{circleId:string}>};
   circles:Array<{id:string;name:string;color:string}>;
   people:MentionPerson[];
 }) {
   const memberships=new Set(contact.circles.map(c=>c.circleId));
   return <ModalForm action={updateContact} noValidate className="grid gap-4"><input type="hidden" name="id" value={contact.id}/>
+    <PhotoEditor existingPhoto={contact.photo}/>
     <div className="grid grid-cols-2 gap-3"><FormField label="Prénom"><TextField name="firstName" required defaultValue={contact.firstName}/></FormField><FormField label="Nom"><TextField name="lastName" defaultValue={contact.lastName}/></FormField></div>
     <div className="grid grid-cols-2 gap-3"><FormField label="E-mail"><TextField type="email" name="email" defaultValue={contact.email}/></FormField><FormField label="Téléphone"><TextField name="phone" defaultValue={contact.phone}/></FormField></div>
     <RelationTagField selected={contact.relationTags.map(item=>item.tag).concat(contact.relationType?[contact.relationType]:[])}/>
@@ -67,14 +70,16 @@ export function InteractionForm({ contacts, people = contacts }: { contacts:Ment
 export function ReminderForm({ contacts }: { contacts:Array<{id:string;firstName:string;lastName:string}> }) {
   return <ModalForm action={addReminder} noValidate className="grid gap-4">
     <FormField label="Personne"><NativeSelect name="contactId" required>{contacts.map(c=><option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}</NativeSelect></FormField>
+    <FormField label="Type"><NativeSelect name="kind" defaultValue="contact"><option value="contact">À contacter</option><option value="no_contact">Ne pas contacter avant cette date</option><option value="other">Autre rappel</option></NativeSelect></FormField>
     <FormField label="Rappel"><TextField name="title" required placeholder="Lui demander des nouvelles"/></FormField>
     <FormField label="Date"><TextField type="date" name="dueAt" required/></FormField>
     <SubmitButton>Créer le rappel</SubmitButton>
   </ModalForm>;
 }
 
-export function EditReminderForm({ reminder }: { reminder:{id:string;title:string;dueAt:Date} }) {
+export function EditReminderForm({ reminder }: { reminder:{id:string;kind:string;title:string;dueAt:Date} }) {
   return <ModalForm action={updateReminder} noValidate className="grid gap-4"><input type="hidden" name="id" value={reminder.id}/>
+    <FormField label="Type"><NativeSelect name="kind" defaultValue={reminder.kind}><option value="contact">À contacter</option><option value="no_contact">Ne pas contacter avant cette date</option><option value="other">Autre rappel</option></NativeSelect></FormField>
     <FormField label="Rappel"><TextField name="title" required defaultValue={reminder.title}/></FormField>
     <FormField label="Date"><TextField type="date" name="dueAt" required defaultValue={reminder.dueAt.toISOString().slice(0,10)}/></FormField>
     <SubmitButton>Enregistrer le rappel</SubmitButton>
@@ -108,6 +113,41 @@ export function CustomFieldForm({contactId}:{contactId:string}) {
 
 export function ContactRelationForm({contactId,people}:{contactId:string;people:MentionPerson[]}) {
   return <ModalForm action={addContactRelation} className="grid gap-4"><input type="hidden" name="contactId" value={contactId}/><FormField label="Personne liée"><NativeSelect name="targetId">{people.filter(person=>person.id!==contactId).map(person=><option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}</NativeSelect></FormField><FormField label="Nature du lien"><TextField name="label" placeholder="Sœur, collègue, partenaire…"/></FormField><FormField label="Note"><TextAreaField name="note" rows={2}/></FormField><SubmitButton>Créer le lien</SubmitButton></ModalForm>;
+}
+
+export function DebtForm({people}:{people:MentionPerson[]}) {
+  return <ModalForm action={addDebt} className="grid gap-4">
+    <FormField label="Personne"><NativeSelect name="contactId" required>{people.map(person=><option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}</NativeSelect></FormField>
+    <FormField label="Sens"><NativeSelect name="direction" defaultValue="owed_to_me"><option value="owed_to_me">Cette personne me doit</option><option value="i_owe">Je dois à cette personne</option></NativeSelect></FormField>
+    <div className="grid grid-cols-[1fr_110px] gap-3"><FormField label="Montant"><TextField type="number" name="amount" min="0.01" step="0.01" required/></FormField><FormField label="Devise"><NativeSelect name="currency"><option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option><option value="CHF">CHF</option></NativeSelect></FormField></div>
+    <FormField label="Objet"><TextField name="title" required placeholder="Restaurant, billet, avance…"/></FormField>
+    <FormField label="Échéance"><TextField type="date" name="dueAt"/></FormField>
+    <FormField label="Note"><TextAreaField name="note" rows={2}/></FormField>
+    <SubmitButton>Ajouter la dette</SubmitButton>
+  </ModalForm>;
+}
+
+export function PetForm({people}:{people:MentionPerson[]}) {
+  return <ModalForm action={addPet} className="grid gap-4">
+    <PhotoEditor/>
+    <div className="grid grid-cols-2 gap-3"><FormField label="Nom"><TextField name="name" required/></FormField><FormField label="Espèce"><NativeSelect name="species"><option value="Chien">Chien</option><option value="Chat">Chat</option><option value="Oiseau">Oiseau</option><option value="Lapin">Lapin</option><option value="Cheval">Cheval</option><option value="Poisson">Poisson</option><option value="Autre">Autre</option></NativeSelect></FormField></div>
+    <div className="grid grid-cols-2 gap-3"><FormField label="Race"><TextField name="breed"/></FormField><FormField label="Anniversaire"><TextField type="date" name="birthday"/></FormField></div>
+    {people.length>0&&<fieldset className="grid gap-2"><legend className="text-sm font-medium">Personnes liées</legend><div className="max-h-44 overflow-y-auto rounded-lg border p-2">{people.map(person=><CheckPill key={person.id} label={`${person.firstName} ${person.lastName}`} name="ownerIds" value={person.id}/>)}</div><p className="text-xs text-muted-foreground">Vous pouvez choisir plusieurs responsables.</p></fieldset>}
+    <FormField label="Notes"><TextAreaField name="notes" rows={3} placeholder="Habitudes, vétérinaire, alimentation…"/></FormField>
+    <SubmitButton>Ajouter l’animal</SubmitButton>
+  </ModalForm>;
+}
+
+export function EditPetForm({pet,people}:{pet:{id:string;name:string;species:string;breed:string;photo:string;birthday:Date|null;notes:string;owners:Array<{contactId:string}>};people:MentionPerson[]}) {
+  const owners=new Set(pet.owners.map(owner=>owner.contactId));
+  return <ModalForm action={updatePet} className="grid gap-4"><input type="hidden" name="id" value={pet.id}/>
+    <PhotoEditor existingPhoto={pet.photo}/>
+    <div className="grid grid-cols-2 gap-3"><FormField label="Nom"><TextField name="name" required defaultValue={pet.name}/></FormField><FormField label="Espèce"><NativeSelect name="species" defaultValue={pet.species}><option value="Chien">Chien</option><option value="Chat">Chat</option><option value="Oiseau">Oiseau</option><option value="Lapin">Lapin</option><option value="Cheval">Cheval</option><option value="Poisson">Poisson</option><option value="Autre">Autre</option></NativeSelect></FormField></div>
+    <div className="grid grid-cols-2 gap-3"><FormField label="Race"><TextField name="breed" defaultValue={pet.breed}/></FormField><FormField label="Anniversaire"><TextField type="date" name="birthday" defaultValue={pet.birthday?.toISOString().slice(0,10)}/></FormField></div>
+    <fieldset className="grid gap-2"><legend className="text-sm font-medium">Personnes liées</legend><div className="max-h-44 space-y-1 overflow-y-auto rounded-lg border p-2">{people.map(person=><CheckPill key={person.id} label={`${person.firstName} ${person.lastName}`} name="ownerIds" value={person.id} defaultChecked={owners.has(person.id)}/>)}</div></fieldset>
+    <FormField label="Notes"><TextAreaField name="notes" rows={3} defaultValue={pet.notes}/></FormField>
+    <SubmitButton>Enregistrer l’animal</SubmitButton>
+  </ModalForm>;
 }
 
 function PrivateToggle(){return <label className="flex items-center gap-2 rounded-lg border bg-muted/40 p-3 text-sm"><input type="checkbox" name="private"/>Contenu sensible : masquer dans la préparation rapide</label>}

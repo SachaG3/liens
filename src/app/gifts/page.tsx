@@ -4,8 +4,7 @@ import { Shell } from "@/components/shell";
 import { PaginationControls } from "@/components/pagination-controls";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { initials } from "@/lib/score";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ProfileAvatar } from "@/components/profile-avatar";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -45,6 +44,6 @@ export default async function GiftsPage({searchParams}:{searchParams:Promise<{pa
   </div></Shell>;
 }
 
-function GiftSection({title,gifts,muted=false}:{title:string;gifts:Array<{id:string;title:string;url:string;price:number|null;note:string;purchased:boolean;contact:{id:string;firstName:string;lastName:string}}> ;muted?:boolean}) {
-  return <section><h2 className="mb-3 text-sm font-semibold">{title}</h2><div className="overflow-hidden rounded-xl border bg-card">{gifts.map((gift,index)=><div key={gift.id} className={`grid items-center gap-3 p-4 sm:grid-cols-[1fr_1fr_auto] ${index>0?"border-t":""} ${muted?"opacity-55":""}`}><Link href={`/contacts/${gift.contact.id}`} className="flex min-w-0 items-center gap-3"><Avatar className="size-9"><AvatarFallback>{initials(gift.contact.firstName,gift.contact.lastName)}</AvatarFallback></Avatar><div><p className="text-sm font-medium">{gift.contact.firstName} {gift.contact.lastName}</p><p className="truncate text-xs text-muted-foreground">{gift.title}</p></div></Link><p className="hidden truncate text-sm text-muted-foreground sm:block">{gift.note||"Aucune note"}</p><div className="flex items-center gap-3 text-sm"><span>{gift.price!=null?gift.price.toLocaleString("fr-FR",{style:"currency",currency:"EUR"}):"—"}</span>{gift.url&&<a href={gift.url} target="_blank" rel="noreferrer"><ExternalLink className="size-4 text-muted-foreground"/></a>}</div></div>)}{!gifts.length&&<div className="p-10 text-center"><Gift className="mx-auto mb-2 size-5 text-muted-foreground"/><p className="text-sm text-muted-foreground">Aucune idée cadeau enregistrée.</p></div>}</div></section>;
+function GiftSection({title,gifts,muted=false}:{title:string;gifts:Array<{id:string;title:string;url:string;price:number|null;note:string;purchased:boolean;contact:{id:string;firstName:string;lastName:string;photo:string}}> ;muted?:boolean}) {
+  return <section><h2 className="mb-3 text-sm font-semibold">{title}</h2><div className="overflow-hidden rounded-xl border bg-card">{gifts.map((gift,index)=><div key={gift.id} className={`grid items-center gap-3 p-4 sm:grid-cols-[1fr_1fr_auto] ${index>0?"border-t":""} ${muted?"opacity-55":""}`}><Link href={`/contacts/${gift.contact.id}`} className="flex min-w-0 items-center gap-3"><ProfileAvatar photo={gift.contact.photo} name={gift.contact.firstName+" "+gift.contact.lastName}/><div><p className="text-sm font-medium">{gift.contact.firstName} {gift.contact.lastName}</p><p className="truncate text-xs text-muted-foreground">{gift.title}</p></div></Link><p className="hidden truncate text-sm text-muted-foreground sm:block">{gift.note||"Aucune note"}</p><div className="flex items-center gap-3 text-sm"><span>{gift.price!=null?gift.price.toLocaleString("fr-FR",{style:"currency",currency:"EUR"}):"—"}</span>{gift.url&&<a href={gift.url} target="_blank" rel="noreferrer"><ExternalLink className="size-4 text-muted-foreground"/></a>}</div></div>)}{!gifts.length&&<div className="p-10 text-center"><Gift className="mx-auto mb-2 size-5 text-muted-foreground"/><p className="text-sm text-muted-foreground">Aucune idée cadeau enregistrée.</p></div>}</div></section>;
 }

@@ -15,6 +15,8 @@ model User {
   sessions     Session[]
   contacts     Contact[]
   circles      Circle[]
+  debts        Debt[]
+  pets         Pet[]
   createdAt    DateTime      @default(now())
 }
 
@@ -36,6 +38,7 @@ model Contact {
   email            String          @default("")
   phone            String          @default("")
   company          String          @default("")
+  photo            String          @default("")
   relationType     String          @default("")
   relationTags     ContactRelationTag[]
   birthday         DateTime?
@@ -53,6 +56,8 @@ model Contact {
   customFields     CustomField[]
   linksFrom        ContactLink[]   @relation("LinkFrom")
   linksTo          ContactLink[]   @relation("LinkTo")
+  debts            Debt[]
+  pets             PetOwner[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 }
@@ -100,6 +105,7 @@ model Reminder {
   id        String   @id @default(cuid())
   contactId String
   contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  kind      String   @default("contact")
   title     String
   dueAt     DateTime
   done      Boolean  @default(false)
@@ -175,4 +181,44 @@ model CustomField {
   value     String
   private   Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model Debt {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  direction String
+  amount    Float
+  currency  String   @default("EUR")
+  title     String
+  note      String   @default("")
+  dueAt     DateTime?
+  settled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Pet {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  species   String
+  breed     String     @default("")
+  photo     String     @default("")
+  birthday  DateTime?
+  notes     String     @default("")
+  owners    PetOwner[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model PetOwner {
+  petId     String
+  contactId String
+  pet       Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([petId, contactId])
 }
