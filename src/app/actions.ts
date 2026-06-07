@@ -33,6 +33,28 @@ export async function logout() {
   redirect("/login");
 }
 
+export async function updateAccount(form: FormData) {
+  const user = await requireUser();
+  const name=text(form,"name"),email=text(form,"email").toLowerCase();
+  if(!name||!email)return false;
+  const duplicate=await db.user.findFirst({where:{email,id:{not:user.id}}});
+  if(duplicate)return false;
+  await db.user.update({where:{id:user.id},data:{name,email,photo:await saveImage(form.get("photo"),user.photo)}});
+  revalidatePath("/","layout");revalidatePath("/account");
+  return true;
+}
+
+export async function updatePassword(form: FormData) {
+  const user=await requireUser();
+  const current=text(form,"currentPassword"),password=text(form,"password");
+  const stored=await db.user.findUnique({where:{id:user.id}});
+  if(!stored||password.length<8||!(await bcrypt.compare(current,stored.passwordHash)))return false;
+  await db.user.update({where:{id:user.id},data:{passwordHash:await bcrypt.hash(password,12)}});
+  await db.session.deleteMany({where:{userId:user.id,id:{notIn:[]}}});
+  await clearSession();
+  redirect("/login");
+}
+
 export async function addCircle(form: FormData) {
   const user = await requireUser();
   const name = text(form, "name");
@@ -44,6 +66,13 @@ export async function addCircle(form: FormData) {
   revalidatePath("/");
   revalidatePath("/circles");
   return true;
+}
+
+export async function updateCircle(form: FormData) {
+  const user=await requireUser();const id=text(form,"id"),name=text(form,"name");
+  const circle=await db.circle.findFirst({where:{id,userId:user.id}});if(!circle||!name)return false;
+  await db.circle.update({where:{id},data:{name,color:text(form,"color")||circle.color,frequency:Number(text(form,"frequency"))||30,weeklyTarget:Number(text(form,"weeklyTarget"))||1}});
+  revalidatePath("/");revalidatePath("/circles");revalidatePath("/contacts");return true;
 }
 
 export async function addContact(form: FormData) {
@@ -104,6 +133,15 @@ export async function addInteraction(form: FormData) {
   return true;
 }
 
+export async function updateInteraction(form:FormData){
+  const user=await requireUser();const id=text(form,"id");
+  const interaction=await db.interaction.findFirst({where:{id,contact:{userId:user.id}}});if(!interaction)return false;
+  const note=text(form,"note");
+  await db.interaction.update({where:{id},data:{type:text(form,"type")||"message",note,happenedAt:text(form,"happenedAt")?new Date(text(form,"happenedAt")):interaction.happenedAt}});
+  await createMentionLinks(user.id,interaction.contactId,note);
+  revalidatePath(`/contacts/${interaction.contactId}`);return true;
+}
+
 export async function addQuickInteraction(form: FormData) {
   const user = await requireUser();
   const contactId = text(form, "contactId");
@@ -126,11 +164,35 @@ export async function addJournalEntry(form: FormData) {
   revalidatePath(`/contacts/${contactId}`);return true;
 }
 
+export async function updateJournalEntry(form:FormData){
+  const user=await requireUser();const id=text(form,"id"),title=text(form,"title");
+  const item=await db.journalEntry.findFirst({where:{id,contact:{userId:user.id}}});if(!item||!title)return false;
+  await db.journalEntry.update({where:{id},data:{title,type:text(form,"type")||"note",content:text(form,"content"),happenedAt:text(form,"happenedAt")?new Date(text(form,"happenedAt")):item.happenedAt,private:form.get("private")==="on"}});
+  revalidatePath(`/contacts/${item.contactId}`);return true;
+}
+
+export async function deleteJournalEntry(form:FormData){
+  const user=await requireUser();const item=await db.journalEntry.findFirst({where:{id:text(form,"id"),contact:{userId:user.id}}});if(!item)return;
+  await db.journalEntry.delete({where:{id:item.id}});revalidatePath(`/contacts/${item.contactId}`);
+}
+
 export async function addImportantDate(form:FormData){
   const user=await requireUser();const contactId=text(form,"contactId"),title=text(form,"title"),date=text(form,"date");
   const contact=await db.contact.findFirst({where:{id:contactId,userId:user.id}});if(!contact||!title||!date)return false;
   await db.importantDate.create({data:{contactId,title,date:new Date(date),recurring:form.get("recurring")==="on",remindDays:Number(text(form,"remindDays"))||7}});
   revalidatePath(`/contacts/${contactId}`);revalidatePath("/reminders");return true;
+}
+
+export async function updateImportantDate(form:FormData){
+  const user=await requireUser();const id=text(form,"id"),title=text(form,"title"),date=text(form,"date");
+  const item=await db.importantDate.findFirst({where:{id,contact:{userId:user.id}}});if(!item||!title||!date)return false;
+  await db.importantDate.update({where:{id},data:{title,date:new Date(date),recurring:form.get("recurring")==="on",remindDays:Number(text(form,"remindDays"))||7}});
+  revalidatePath(`/contacts/${item.contactId}`);revalidatePath("/reminders");return true;
+}
+
+export async function deleteImportantDate(form:FormData){
+  const user=await requireUser();const item=await db.importantDate.findFirst({where:{id:text(form,"id"),contact:{userId:user.id}}});if(!item)return;
+  await db.importantDate.delete({where:{id:item.id}});revalidatePath(`/contacts/${item.contactId}`);revalidatePath("/reminders");
 }
 
 export async function addConversationItem(form:FormData){
@@ -145,10 +207,33 @@ export async function toggleConversationItem(form:FormData){
   await db.conversationItem.update({where:{id:item.id},data:{done:!item.done}});revalidatePath(`/contacts/${item.contactId}`);
 }
 
+export async function updateConversationItem(form:FormData){
+  const user=await requireUser();const id=text(form,"id"),title=text(form,"title");
+  const item=await db.conversationItem.findFirst({where:{id,contact:{userId:user.id}}});if(!item||!title)return false;
+  await db.conversationItem.update({where:{id},data:{title,kind:text(form,"kind")||"topic",detail:text(form,"detail"),private:form.get("private")==="on"}});
+  revalidatePath(`/contacts/${item.contactId}`);return true;
+}
+
+export async function deleteConversationItem(form:FormData){
+  const user=await requireUser();const item=await db.conversationItem.findFirst({where:{id:text(form,"id"),contact:{userId:user.id}}});if(!item)return;
+  await db.conversationItem.delete({where:{id:item.id}});revalidatePath(`/contacts/${item.contactId}`);
+}
+
 export async function addCustomField(form:FormData){
   const user=await requireUser();const contactId=text(form,"contactId"),label=text(form,"label"),value=text(form,"value");
   const contact=await db.contact.findFirst({where:{id:contactId,userId:user.id}});if(!contact||!label||!value)return false;
   await db.customField.create({data:{contactId,label,value,private:form.get("private")==="on"}});revalidatePath(`/contacts/${contactId}`);return true;
+}
+
+export async function updateCustomField(form:FormData){
+  const user=await requireUser();const id=text(form,"id"),label=text(form,"label"),value=text(form,"value");
+  const item=await db.customField.findFirst({where:{id,contact:{userId:user.id}}});if(!item||!label||!value)return false;
+  await db.customField.update({where:{id},data:{label,value,private:form.get("private")==="on"}});revalidatePath(`/contacts/${item.contactId}`);return true;
+}
+
+export async function deleteCustomField(form:FormData){
+  const user=await requireUser();const item=await db.customField.findFirst({where:{id:text(form,"id"),contact:{userId:user.id}}});if(!item)return;
+  await db.customField.delete({where:{id:item.id}});revalidatePath(`/contacts/${item.contactId}`);
 }
 
 export async function addContactRelation(form:FormData){
@@ -159,6 +244,11 @@ export async function addContactRelation(form:FormData){
   revalidatePath(`/contacts/${sourceId}`);revalidatePath(`/contacts/${targetId}`);revalidatePath("/map");return true;
 }
 
+export async function deleteContactRelation(form:FormData){
+  const user=await requireUser();const link=await db.contactLink.findFirst({where:{id:text(form,"id"),OR:[{fromContact:{userId:user.id}},{toContact:{userId:user.id}}]}});if(!link)return;
+  await db.contactLink.delete({where:{id:link.id}});revalidatePath(`/contacts/${link.fromContactId}`);revalidatePath(`/contacts/${link.toContactId}`);revalidatePath("/map");
+}
+
 export async function addDebt(form:FormData){
   const user=await requireUser();
   const contactId=text(form,"contactId"),title=text(form,"title"),direction=text(form,"direction")==="i_owe"?"i_owe":"owed_to_me";
@@ -167,6 +257,14 @@ export async function addDebt(form:FormData){
   if(!contact||!title||!Number.isFinite(amount)||amount<=0)return false;
   await db.debt.create({data:{userId:user.id,contactId,title,direction,amount,currency:text(form,"currency")||"EUR",note:text(form,"note"),dueAt:text(form,"dueAt")?new Date(text(form,"dueAt")):null}});
   revalidatePath("/finances");revalidatePath(`/contacts/${contactId}`);return true;
+}
+
+export async function updateDebt(form:FormData){
+  const user=await requireUser();const id=text(form,"id"),title=text(form,"title"),amount=Number(text(form,"amount").replace(",","."));
+  const debt=await db.debt.findFirst({where:{id,userId:user.id}});if(!debt||!title||!Number.isFinite(amount)||amount<=0)return false;
+  const contactId=text(form,"contactId");const contact=await db.contact.findFirst({where:{id:contactId,userId:user.id}});if(!contact)return false;
+  await db.debt.update({where:{id},data:{contactId,title,amount,direction:text(form,"direction")==="i_owe"?"i_owe":"owed_to_me",currency:text(form,"currency")||"EUR",note:text(form,"note"),dueAt:text(form,"dueAt")?new Date(text(form,"dueAt")):null}});
+  revalidatePath("/finances");revalidatePath(`/contacts/${debt.contactId}`);revalidatePath(`/contacts/${contactId}`);return true;
 }
 
 export async function toggleDebt(form:FormData){
@@ -272,6 +370,7 @@ export async function deleteContact(form: FormData) {
   await db.contact.delete({where:{id:contact.id}});await deleteImage(contact.photo);
   revalidatePath("/");
   revalidatePath("/contacts");
+  redirect("/contacts");
 }
 
 export async function deleteCircle(form: FormData) {
@@ -303,6 +402,14 @@ export async function addGiftIdea(form: FormData) {
   revalidatePath(`/contacts/${contactId}`);
   revalidatePath("/gifts");
   return true;
+}
+
+export async function updateGiftIdea(form:FormData){
+  const user=await requireUser();const id=text(form,"id"),title=text(form,"title");
+  const gift=await db.giftIdea.findFirst({where:{id,contact:{userId:user.id}}});if(!gift||!title)return false;
+  const rawPrice=text(form,"price").replace(",",".");
+  await db.giftIdea.update({where:{id},data:{title,url:text(form,"url"),note:text(form,"note"),price:rawPrice?Number(rawPrice):null}});
+  revalidatePath(`/contacts/${gift.contactId}`);revalidatePath("/gifts");return true;
 }
 
 export async function toggleGiftIdea(form: FormData) {

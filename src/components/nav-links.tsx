@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bell, CalendarDays, CircleDot, Database, Gift, Import, MoreHorizontal, Network, PawPrint, UsersRound, WalletCards } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, CircleDot, Database, Gift, Import, MoreHorizontal, Network, PawPrint, Settings, UsersRound, WalletCards } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -16,6 +16,7 @@ const links = [
   {href:"/stats",label:"Statistiques",icon:BarChart3},
   {href:"/data",label:"Données",icon:Database},
   {href:"/import",label:"Importer",icon:Import},
+  {href:"/account",label:"Mon compte",icon:Settings},
 ];
 
 export function NavLinks({mobile=false}:{mobile?:boolean}) {

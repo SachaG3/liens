@@ -1,4 +1,4 @@
-import { addCircle, addContact, addContactRelation, addConversationItem, addCustomField, addDebt, addGiftIdea, addImportantDate, addInteraction, addJournalEntry, addPet, addReminder, updateContact, updatePet, updateReminder } from "@/app/actions";
+import { addCircle, addContact, addContactRelation, addConversationItem, addCustomField, addDebt, addGiftIdea, addImportantDate, addInteraction, addJournalEntry, addPet, addReminder, updateAccount, updateCircle, updateContact, updateConversationItem, updateCustomField, updateDebt, updateGiftIdea, updateImportantDate, updateInteraction, updateJournalEntry, updatePassword, updatePet, updateReminder } from "@/app/actions";
 import { CheckPill, FormField, NativeSelect, SubmitButton, TextAreaField, TextField } from "@/components/form-controls";
 import { MentionTextarea } from "@/components/mention-textarea";
 import { ModalForm } from "@/components/modal";
@@ -14,6 +14,23 @@ export function CircleForm() {
     <FormField label="Objectif hebdomadaire"><TextField type="number" name="weeklyTarget" defaultValue="1" min="1"/></FormField>
     <SubmitButton>Créer le cercle</SubmitButton>
   </ModalForm>;
+}
+
+export function EditCircleForm({circle}:{circle:{id:string;name:string;color:string;frequency:number;weeklyTarget:number}}) {
+  return <ModalForm action={updateCircle} noValidate className="grid gap-4"><input type="hidden" name="id" value={circle.id}/>
+    <FormField label="Nom du cercle"><TextField name="name" required defaultValue={circle.name}/></FormField>
+    <div className="grid grid-cols-2 gap-3"><FormField label="Couleur"><TextField className="p-1" type="color" name="color" defaultValue={circle.color}/></FormField><FormField label="Contact tous les…"><TextField type="number" name="frequency" defaultValue={circle.frequency} min="1"/></FormField></div>
+    <FormField label="Objectif hebdomadaire"><TextField type="number" name="weeklyTarget" defaultValue={circle.weeklyTarget} min="1"/></FormField>
+    <SubmitButton>Enregistrer le cercle</SubmitButton>
+  </ModalForm>;
+}
+
+export function AccountForm({user}:{user:{name:string;email:string;photo:string}}) {
+  return <ModalForm action={updateAccount} className="grid gap-4"><PhotoEditor existingPhoto={user.photo}/><FormField label="Nom"><TextField name="name" required defaultValue={user.name}/></FormField><FormField label="E-mail"><TextField type="email" name="email" required defaultValue={user.email}/></FormField><SubmitButton>Enregistrer le profil</SubmitButton></ModalForm>;
+}
+
+export function PasswordForm() {
+  return <ModalForm action={updatePassword} className="grid gap-4"><FormField label="Mot de passe actuel"><TextField type="password" name="currentPassword" required autoComplete="current-password"/></FormField><FormField label="Nouveau mot de passe" hint="8 caractères minimum"><TextField type="password" name="password" required minLength={8} autoComplete="new-password"/></FormField><SubmitButton>Changer le mot de passe</SubmitButton></ModalForm>;
 }
 
 export function ContactForm({ circles, people = [] }: { circles:Array<{id:string;name:string;color:string}>;people?:MentionPerson[] }) {
@@ -67,6 +84,10 @@ export function InteractionForm({ contacts, people = contacts }: { contacts:Ment
   </ModalForm>;
 }
 
+export function EditInteractionForm({interaction,people}:{interaction:{id:string;type:string;note:string;happenedAt:Date};people:MentionPerson[]}) {
+  return <ModalForm action={updateInteraction} noValidate className="grid gap-4"><input type="hidden" name="id" value={interaction.id}/><FormField label="Type"><NativeSelect name="type" defaultValue={interaction.type}><option value="message">Message</option><option value="call">Appel</option><option value="meeting">Rencontre</option><option value="email">E-mail</option></NativeSelect></FormField><FormField label="Date"><TextField type="date" name="happenedAt" defaultValue={interaction.happenedAt.toISOString().slice(0,10)}/></FormField><FormField label="Note"><MentionTextarea people={people} name="note" rows={4} defaultValue={interaction.note}/></FormField><SubmitButton>Enregistrer l’échange</SubmitButton></ModalForm>;
+}
+
 export function ReminderForm({ contacts }: { contacts:Array<{id:string;firstName:string;lastName:string}> }) {
   return <ModalForm action={addReminder} noValidate className="grid gap-4">
     <FormField label="Personne"><NativeSelect name="contactId" required>{contacts.map(c=><option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}</NativeSelect></FormField>
@@ -95,20 +116,40 @@ export function GiftIdeaForm({ contactId }: { contactId:string }) {
   </ModalForm>;
 }
 
+export function EditGiftIdeaForm({gift}:{gift:{id:string;title:string;url:string;price:number|null;note:string}}) {
+  return <ModalForm action={updateGiftIdea} noValidate className="grid gap-4"><input type="hidden" name="id" value={gift.id}/><FormField label="Idée"><TextField name="title" required defaultValue={gift.title}/></FormField><div className="grid grid-cols-[1fr_120px] gap-3"><FormField label="Lien"><TextField type="url" name="url" defaultValue={gift.url}/></FormField><FormField label="Budget (€)"><TextField type="number" step="0.01" min="0" name="price" defaultValue={gift.price??undefined}/></FormField></div><FormField label="Note"><TextAreaField name="note" rows={2} defaultValue={gift.note}/></FormField><SubmitButton>Enregistrer l’idée</SubmitButton></ModalForm>;
+}
+
 export function JournalEntryForm({contactId}:{contactId:string}) {
   return <ModalForm action={addJournalEntry} className="grid gap-4"><input type="hidden" name="contactId" value={contactId}/><FormField label="Titre"><TextField name="title" required placeholder="Voyage à Lyon, changement de travail…"/></FormField><div className="grid grid-cols-2 gap-3"><FormField label="Type"><NativeSelect name="type"><option value="note">Note</option><option value="event">Événement</option><option value="milestone">Étape importante</option><option value="conflict">Conflit</option><option value="memory">Souvenir</option></NativeSelect></FormField><FormField label="Date"><TextField type="date" name="happenedAt"/></FormField></div><FormField label="Détails"><TextAreaField name="content" rows={4}/></FormField><PrivateToggle/><SubmitButton>Ajouter au journal</SubmitButton></ModalForm>;
+}
+
+export function EditJournalEntryForm({item}:{item:{id:string;type:string;title:string;content:string;happenedAt:Date;private:boolean}}) {
+  return <ModalForm action={updateJournalEntry} className="grid gap-4"><input type="hidden" name="id" value={item.id}/><FormField label="Titre"><TextField name="title" required defaultValue={item.title}/></FormField><div className="grid grid-cols-2 gap-3"><FormField label="Type"><NativeSelect name="type" defaultValue={item.type}><option value="note">Note</option><option value="event">Événement</option><option value="milestone">Étape importante</option><option value="conflict">Conflit</option><option value="memory">Souvenir</option></NativeSelect></FormField><FormField label="Date"><TextField type="date" name="happenedAt" defaultValue={item.happenedAt.toISOString().slice(0,10)}/></FormField></div><FormField label="Détails"><TextAreaField name="content" rows={4} defaultValue={item.content}/></FormField><PrivateToggle selected={item.private}/><SubmitButton>Enregistrer l’entrée</SubmitButton></ModalForm>;
 }
 
 export function ImportantDateForm({contactId}:{contactId:string}) {
   return <ModalForm action={addImportantDate} className="grid gap-4"><input type="hidden" name="contactId" value={contactId}/><FormField label="Nom de la date"><TextField name="title" required placeholder="Anniversaire de rencontre"/></FormField><div className="grid grid-cols-2 gap-3"><FormField label="Date"><TextField type="date" name="date" required/></FormField><FormField label="Prévenir avant"><NativeSelect name="remindDays" defaultValue="7"><option value="0">Le jour même</option><option value="3">3 jours</option><option value="7">7 jours</option><option value="14">14 jours</option><option value="30">30 jours</option></NativeSelect></FormField></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" name="recurring" defaultChecked/>Répéter chaque année</label><SubmitButton>Ajouter la date</SubmitButton></ModalForm>;
 }
 
+export function EditImportantDateForm({item}:{item:{id:string;title:string;date:Date;recurring:boolean;remindDays:number}}) {
+  return <ModalForm action={updateImportantDate} className="grid gap-4"><input type="hidden" name="id" value={item.id}/><FormField label="Nom de la date"><TextField name="title" required defaultValue={item.title}/></FormField><div className="grid grid-cols-2 gap-3"><FormField label="Date"><TextField type="date" name="date" required defaultValue={item.date.toISOString().slice(0,10)}/></FormField><FormField label="Prévenir avant"><NativeSelect name="remindDays" defaultValue={String(item.remindDays)}><option value="0">Le jour même</option><option value="3">3 jours</option><option value="7">7 jours</option><option value="14">14 jours</option><option value="30">30 jours</option></NativeSelect></FormField></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" name="recurring" defaultChecked={item.recurring}/>Répéter chaque année</label><SubmitButton>Enregistrer la date</SubmitButton></ModalForm>;
+}
+
 export function ConversationItemForm({contactId}:{contactId:string}) {
   return <ModalForm action={addConversationItem} className="grid gap-4"><input type="hidden" name="contactId" value={contactId}/><FormField label="Type"><NativeSelect name="kind"><option value="topic">Sujet à reprendre</option><option value="question">Question à poser</option><option value="promise">Promesse / chose à faire</option><option value="interest">Centre d’intérêt</option></NativeSelect></FormField><FormField label="Titre"><TextField name="title" required placeholder="Demander comment avance son projet"/></FormField><FormField label="Détails"><TextAreaField name="detail" rows={3}/></FormField><PrivateToggle/><SubmitButton>Ajouter au suivi</SubmitButton></ModalForm>;
 }
 
+export function EditConversationItemForm({item}:{item:{id:string;kind:string;title:string;detail:string;private:boolean}}) {
+  return <ModalForm action={updateConversationItem} className="grid gap-4"><input type="hidden" name="id" value={item.id}/><FormField label="Type"><NativeSelect name="kind" defaultValue={item.kind}><option value="topic">Sujet à reprendre</option><option value="question">Question à poser</option><option value="promise">Promesse / chose à faire</option><option value="interest">Centre d’intérêt</option></NativeSelect></FormField><FormField label="Titre"><TextField name="title" required defaultValue={item.title}/></FormField><FormField label="Détails"><TextAreaField name="detail" rows={3} defaultValue={item.detail}/></FormField><PrivateToggle selected={item.private}/><SubmitButton>Enregistrer le suivi</SubmitButton></ModalForm>;
+}
+
 export function CustomFieldForm({contactId}:{contactId:string}) {
   return <ModalForm action={addCustomField} className="grid gap-4"><input type="hidden" name="contactId" value={contactId}/><FormField label="Nom du champ"><TextField name="label" required placeholder="Taille de vêtement, adresse…"/></FormField><FormField label="Valeur"><TextAreaField name="value" required rows={3}/></FormField><PrivateToggle/><SubmitButton>Ajouter le champ</SubmitButton></ModalForm>;
+}
+
+export function EditCustomFieldForm({item}:{item:{id:string;label:string;value:string;private:boolean}}) {
+  return <ModalForm action={updateCustomField} className="grid gap-4"><input type="hidden" name="id" value={item.id}/><FormField label="Nom du champ"><TextField name="label" required defaultValue={item.label}/></FormField><FormField label="Valeur"><TextAreaField name="value" required rows={3} defaultValue={item.value}/></FormField><PrivateToggle selected={item.private}/><SubmitButton>Enregistrer le champ</SubmitButton></ModalForm>;
 }
 
 export function ContactRelationForm({contactId,people}:{contactId:string;people:MentionPerson[]}) {
@@ -125,6 +166,10 @@ export function DebtForm({people}:{people:MentionPerson[]}) {
     <FormField label="Note"><TextAreaField name="note" rows={2}/></FormField>
     <SubmitButton>Ajouter la dette</SubmitButton>
   </ModalForm>;
+}
+
+export function EditDebtForm({debt,people}:{debt:{id:string;contactId:string;direction:string;amount:number;currency:string;title:string;note:string;dueAt:Date|null};people:MentionPerson[]}) {
+  return <ModalForm action={updateDebt} className="grid gap-4"><input type="hidden" name="id" value={debt.id}/><FormField label="Personne"><NativeSelect name="contactId" required defaultValue={debt.contactId}>{people.map(person=><option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}</NativeSelect></FormField><FormField label="Sens"><NativeSelect name="direction" defaultValue={debt.direction}><option value="owed_to_me">Cette personne me doit</option><option value="i_owe">Je dois à cette personne</option></NativeSelect></FormField><div className="grid grid-cols-[1fr_110px] gap-3"><FormField label="Montant"><TextField type="number" name="amount" min="0.01" step="0.01" required defaultValue={debt.amount}/></FormField><FormField label="Devise"><NativeSelect name="currency" defaultValue={debt.currency}><option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option><option value="CHF">CHF</option></NativeSelect></FormField></div><FormField label="Objet"><TextField name="title" required defaultValue={debt.title}/></FormField><FormField label="Échéance"><TextField type="date" name="dueAt" defaultValue={debt.dueAt?.toISOString().slice(0,10)}/></FormField><FormField label="Note"><TextAreaField name="note" rows={2} defaultValue={debt.note}/></FormField><SubmitButton>Enregistrer la dette</SubmitButton></ModalForm>;
 }
 
 export function PetForm({people}:{people:MentionPerson[]}) {
@@ -150,4 +195,4 @@ export function EditPetForm({pet,people}:{pet:{id:string;name:string;species:str
   </ModalForm>;
 }
 
-function PrivateToggle(){return <label className="flex items-center gap-2 rounded-lg border bg-muted/40 p-3 text-sm"><input type="checkbox" name="private"/>Contenu sensible : masquer dans la préparation rapide</label>}
+function PrivateToggle({selected=false}:{selected?:boolean}){return <label className="flex items-center gap-2 rounded-lg border bg-muted/40 p-3 text-sm"><input type="checkbox" name="private" defaultChecked={selected}/>Contenu sensible : masquer dans la préparation rapide</label>}
