@@ -16,6 +16,14 @@ type Action="create"|"merge"|"skip";
 type Choice={selected:boolean;action:Action;targetId?:string;circleIds:string[];relationTags:string[]};
 type ImportMode="table"|"wizard"|"panel";
 
+function clientId() {
+  if(typeof crypto!=="undefined"&&typeof crypto.randomUUID==="function")return crypto.randomUUID();
+  if(typeof crypto!=="undefined"&&typeof crypto.getRandomValues==="function"){
+    const values=crypto.getRandomValues(new Uint32Array(4));
+    return [...values].map(value=>value.toString(36)).join("-");
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
 function clean(value:string) {
   return value.replace(/\\n/gi,"\n").replace(/\\,/g,",").replace(/\\;/g,";").trim();
 }
@@ -60,7 +68,7 @@ export function VcardImport({existing,circles}:{existing:ExistingContact[];circl
   const additionalInput=useRef<HTMLInputElement>(null);
 
   async function load(files:FileList) {
-    const loaded=(await Promise.all([...files].map(async file=>file.name.toLowerCase().endsWith(".csv")?parseCsv(await file.text(),file.name):parseVcard(await file.text(),file.name)))).flat().map(contact=>({...contact,key:`${contact.key}-${crypto.randomUUID()}`}));
+    const loaded=(await Promise.all([...files].map(async file=>file.name.toLowerCase().endsWith(".csv")?parseCsv(await file.text(),file.name):parseVcard(await file.text(),file.name)))).flat().map(contact=>({...contact,key:`${contact.key}-${clientId()}`}));
     addContacts(loaded);
   }
   function addContacts(loaded:ImportedContact[]) {
@@ -77,9 +85,9 @@ export function VcardImport({existing,circles}:{existing:ExistingContact[];circl
   }
   function loadExample() {
     addContacts([
-      {key:`example-1-${crypto.randomUUID()}`,firstName:"Camille",lastName:"Martin",email:"camille.martin@example.com",phone:"0612345678",company:"",birthday:"1992-04-18",notes:"Aime la randonnée",sourceId:"example-1",fileName:"exemple.csv"},
-      {key:`example-2-${crypto.randomUUID()}`,firstName:"Alex",lastName:"Dupont",email:"alex.dupont@example.com",phone:"0698765432",company:"Studio Nova",birthday:"",notes:"",sourceId:"example-2",fileName:"exemple.csv"},
-      {key:`example-3-${crypto.randomUUID()}`,firstName:"Sophie",lastName:"Martin",email:"sophie.martin@example.com",phone:"",company:"",birthday:"",notes:"Doublon de démonstration",sourceId:"",fileName:"exemple.csv"},
+      {key:`example-1-${clientId()}`,firstName:"Camille",lastName:"Martin",email:"camille.martin@example.com",phone:"0612345678",company:"",birthday:"1992-04-18",notes:"Aime la randonnée",sourceId:"example-1",fileName:"exemple.csv"},
+      {key:`example-2-${clientId()}`,firstName:"Alex",lastName:"Dupont",email:"alex.dupont@example.com",phone:"0698765432",company:"Studio Nova",birthday:"",notes:"",sourceId:"example-2",fileName:"exemple.csv"},
+      {key:`example-3-${clientId()}`,firstName:"Sophie",lastName:"Martin",email:"sophie.martin@example.com",phone:"",company:"",birthday:"",notes:"Doublon de démonstration",sourceId:"",fileName:"exemple.csv"},
     ]);
   }
 
