@@ -18,6 +18,8 @@ APP_PORT=8080 docker compose up -d
 
 Les données de démonstration sont désactivées par défaut. Pour une instance locale jetable uniquement, elles peuvent être activées explicitement avec `SEED_DEMO_DATA=true`.
 
+`SESSION_COOKIE_SECURE=auto` autorise la connexion en HTTP sur le réseau local et active automatiquement les cookies sécurisés derrière un reverse proxy HTTPS. Utilisez `SESSION_COOKIE_SECURE=true` uniquement si l'application est toujours accessible en HTTPS.
+
 ## Sauvegarde et restauration
 
 Créer une sauvegarde de la base SQLite sans arrêter l'application :

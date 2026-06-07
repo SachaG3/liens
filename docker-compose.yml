@@ -8,6 +8,7 @@ services:
     environment:
       DATABASE_URL: "file:./data/family.db"
       SEED_DEMO_DATA: "${SEED_DEMO_DATA:-false}"
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-auto}"
     volumes:
       - liens_data:/app/prisma/data
     healthcheck:
