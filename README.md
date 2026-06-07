@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Liens
 
-## Getting Started
+CRM relationnel personnel et professionnel, conçu pour être auto-hébergé sur CasaOS, ZimaOS ou tout serveur Docker.
 
-First, run the development server:
+## Démarrage avec Docker
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+docker compose up -d --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ouvrir `http://adresse-du-serveur:3000`, puis créer le premier compte.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Les données sont stockées dans le volume Docker `liens_data`. Pour changer le port :
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+APP_PORT=8080 docker compose up -d
+```
 
-## Learn More
+Les données de démonstration sont désactivées par défaut. Pour une instance locale jetable uniquement, elles peuvent être activées explicitement avec `SEED_DEMO_DATA=true`.
 
-To learn more about Next.js, take a look at the following resources:
+## Sauvegarde et restauration
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Créer une sauvegarde de la base SQLite sans arrêter l'application :
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+docker compose exec liens cp /app/prisma/data/family.db /tmp/family.db
+docker compose cp liens:/tmp/family.db ./family-backup.db
+```
 
-## Deploy on Vercel
+Restaurer une sauvegarde :
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+docker compose stop liens
+docker compose cp ./family-backup.db liens:/app/prisma/data/family.db
+docker compose start liens
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Le fichier de sauvegarde contient les comptes, contacts, cercles, interactions et rappels. Conservez-le dans un emplacement privé.
+
+## Développement
+
+```bash
+npm install
+npm run db:push
+npm run dev
+```
+
+## Fonctionnalités
+
+- Authentification locale multi-utilisateur
+- Cercles personnalisés
+- Contacts personnels et professionnels
+- Fiches détaillées avec notes privées
+- Santé relationnelle selon la fréquence souhaitée
+- Historique des échanges
+- Rappels
+- Assistant d’import multi-fichiers vCard/CSV Apple et Google avec aperçu, détection des doublons, fusion et affectation aux cercles
+- Journal relationnel, dates importantes, sujets à reprendre et préparation avant rencontre
+- Relations explicites entre personnes et carte relationnelle
+- Champs personnalisés et contenus sensibles masqués
+- Statistiques relationnelles, sauvegarde JSON et export vCard

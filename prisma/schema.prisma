@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  sessions     Session[]
+  contacts     Contact[]
+  circles      Circle[]
+  createdAt    DateTime      @default(now())
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Contact {
+  id               String          @id @default(cuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName        String
+  lastName         String          @default("")
+  email            String          @default("")
+  phone            String          @default("")
+  company          String          @default("")
+  relationType     String          @default("")
+  relationTags     ContactRelationTag[]
+  birthday         DateTime?
+  notes            String          @default("")
+  desiredFrequency Int             @default(30)
+  source           String          @default("manual")
+  sourceId         String          @default("")
+  circles          CircleMember[]
+  interactions     Interaction[]
+  reminders        Reminder[]
+  giftIdeas        GiftIdea[]
+  journalEntries   JournalEntry[]
+  importantDates   ImportantDate[]
+  conversationItems ConversationItem[]
+  customFields     CustomField[]
+  linksFrom        ContactLink[]   @relation("LinkFrom")
+  linksTo          ContactLink[]   @relation("LinkTo")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model ContactRelationTag {
+  contactId String
+  tag       String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tag])
+}
+
+model Circle {
+  id           String         @id @default(cuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  color        String         @default("#6d5dfc")
+  frequency    Int            @default(30)
+  weeklyTarget Int            @default(1)
+  members      CircleMember[]
+  createdAt    DateTime       @default(now())
+}
+
+model CircleMember {
+  contactId String
+  circleId  String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  circle    Circle  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, circleId])
+}
+
+model Interaction {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  type      String   @default("message")
+  note      String   @default("")
+  happenedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+}
+
+model Reminder {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  title     String
+  dueAt     DateTime
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model GiftIdea {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  title     String
+  url       String   @default("")
+  price     Float?
+  note      String   @default("")
+  purchased Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ContactLink {
+  id            String   @id @default(cuid())
+  fromContactId String
+  toContactId   String
+  fromContact   Contact  @relation("LinkFrom", fields: [fromContactId], references: [id], onDelete: Cascade)
+  toContact     Contact  @relation("LinkTo", fields: [toContactId], references: [id], onDelete: Cascade)
+  source        String   @default("mention")
+  label         String   @default("")
+  note          String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@unique([fromContactId, toContactId])
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  type      String   @default("note")
+  title     String
+  content   String   @default("")
+  happenedAt DateTime @default(now())
+  private   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ImportantDate {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  title     String
+  date      DateTime
+  recurring Boolean @default(true)
+  remindDays Int    @default(7)
+  createdAt DateTime @default(now())
+}
+
+model ConversationItem {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  kind      String   @default("topic")
+  title     String
+  detail    String   @default("")
+  done      Boolean  @default(false)
+  private   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model CustomField {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  label     String
+  value     String
+  private   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
