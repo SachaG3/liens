@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { clearSession, createSession, requireUser } from "@/lib/auth";
 import { createMentionLinks } from "@/lib/mentions";
+import { relationTypeOptions } from "@/lib/relation-types";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
@@ -277,19 +278,25 @@ export async function deleteGiftIdea(form: FormData) {
 
 export async function importContacts(form: FormData) {
   const user = await requireUser();
-  const contacts = JSON.parse(text(form, "contacts")) as Array<{ firstName:string;lastName:string;email:string;phone:string;company:string;birthday:string;notes:string;sourceId:string;fileName:string;decision:{action:"create"|"merge"|"skip";targetId?:string} }>;
-  const requestedCircleIds=form.getAll("circleIds").map(String);
+  const contacts = JSON.parse(text(form, "contacts")) as Array<{ firstName:string;lastName:string;email:string;phone:string;company:string;birthday:string;notes:string;sourceId:string;fileName:string;choice?:{selected:boolean;action:"create"|"merge"|"skip";targetId?:string;circleIds:string[];relationTags:string[]} }>;
+  const requestedCircleIds=[...new Set(contacts.flatMap(contact=>contact.choice?.circleIds??[]))];
   const circles=await db.circle.findMany({where:{userId:user.id,id:{in:requestedCircleIds}},select:{id:true}});
+  const allowedCircleIds=new Set(circles.map(circle=>circle.id));
+  const allowedRelationTags=new Set<string>(relationTypeOptions());
   for (const contact of contacts.slice(0,5000)) {
-    if(contact.decision.action==="skip")continue;
+    const choice=contact.choice;
+    if(!choice?.selected||choice.action==="skip")continue;
+    const circleIds=[...new Set(choice.circleIds)].filter(id=>allowedCircleIds.has(id));
+    const relationTags=[...new Set(choice.relationTags.map(tag=>tag.trim()))].filter(tag=>allowedRelationTags.has(tag));
     const data={firstName:contact.firstName.trim()||contact.lastName.trim()||"Sans nom",lastName:contact.firstName.trim()?contact.lastName.trim():"",email:contact.email.trim(),phone:contact.phone.trim(),company:contact.company.trim(),notes:contact.notes.trim(),birthday:contact.birthday&&!Number.isNaN(new Date(contact.birthday).getTime())?new Date(contact.birthday):null,source:contact.fileName.toLowerCase().endsWith(".csv")?"csv":"vcard",sourceId:contact.sourceId.trim()};
-    if(contact.decision.action==="merge"&&contact.decision.targetId){
-      const existing=await db.contact.findFirst({where:{id:contact.decision.targetId,userId:user.id}});
+    if(choice.action==="merge"&&choice.targetId){
+      const existing=await db.contact.findFirst({where:{id:choice.targetId,userId:user.id}});
       if(!existing)continue;
       await db.contact.update({where:{id:existing.id},data:{firstName:existing.firstName||data.firstName,lastName:existing.lastName||data.lastName,email:existing.email||data.email,phone:existing.phone||data.phone,company:existing.company||data.company,notes:existing.notes||data.notes,birthday:existing.birthday||data.birthday,sourceId:existing.sourceId||data.sourceId}});
-      for(const {id:circleId} of circles)await db.circleMember.upsert({where:{contactId_circleId:{contactId:existing.id,circleId}},create:{contactId:existing.id,circleId},update:{}});
+      for(const circleId of circleIds)await db.circleMember.upsert({where:{contactId_circleId:{contactId:existing.id,circleId}},create:{contactId:existing.id,circleId},update:{}});
+      for(const tag of relationTags)await db.contactRelationTag.upsert({where:{contactId_tag:{contactId:existing.id,tag}},create:{contactId:existing.id,tag},update:{}});
     }else{
-      await db.contact.create({data:{...data,userId:user.id,circles:{create:circles.map(({id:circleId})=>({circleId}))}}});
+      await db.contact.create({data:{...data,userId:user.id,circles:{create:circleIds.map(circleId=>({circleId}))},relationTags:{create:relationTags.map(tag=>({tag}))}}});
     }
   }
   revalidatePath("/");
