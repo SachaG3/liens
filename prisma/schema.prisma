@@ -12,9 +12,13 @@ model User {
   name         String
   email        String        @unique
   photo        String        @default("")
+  motherId     String?
+  mother       Contact?      @relation("UserMother", fields: [motherId], references: [id], onDelete: SetNull)
+  fatherId     String?
+  father       Contact?      @relation("UserFather", fields: [fatherId], references: [id], onDelete: SetNull)
   passwordHash String
   sessions     Session[]
-  contacts     Contact[]
+  contacts     Contact[]     @relation("OwnedContacts")
   circles      Circle[]
   debts        Debt[]
   pets         Pet[]
@@ -33,7 +37,7 @@ model Session {
 model Contact {
   id               String          @id @default(cuid())
   userId           String
-  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User            @relation("OwnedContacts", fields: [userId], references: [id], onDelete: Cascade)
   firstName        String
   lastName         String          @default("")
   email            String          @default("")
@@ -47,6 +51,15 @@ model Contact {
   desiredFrequency Int             @default(30)
   source           String          @default("manual")
   sourceId         String          @default("")
+  gender           String          @default("")
+  motherId         String?
+  mother           Contact?        @relation("Mother", fields: [motherId], references: [id], onDelete: SetNull)
+  fatherId         String?
+  father           Contact?        @relation("Father", fields: [fatherId], references: [id], onDelete: SetNull)
+  childrenAsMother Contact[]       @relation("Mother")
+  childrenAsFather Contact[]       @relation("Father")
+  usersAsMother    User[]          @relation("UserMother")
+  usersAsFather    User[]          @relation("UserFather")
   circles          CircleMember[]
   interactions     Interaction[]
   reminders        Reminder[]
@@ -134,6 +147,7 @@ model ContactLink {
   source        String   @default("mention")
   label         String   @default("")
   note          String   @default("")
+  relationType  String   @default("") // Conservé pour compatibilité, non utilisé par l'arbre
   createdAt     DateTime @default(now())
 
   @@unique([fromContactId, toContactId])

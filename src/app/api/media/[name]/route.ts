@@ -11,6 +11,7 @@ export async function GET(_:Request,{params}:{params:Promise<{name:string}>}) {
   const user=await getUser();if(!user)return new NextResponse("Non autorisé",{status:401});
   const {name}=await params;if(name!==path.basename(name))return new NextResponse("Introuvable",{status:404});
   const matches=await Promise.all([
+    db.user.findFirst({where:{id:user.id,photo:name},select:{id:true}}),
     db.contact.findFirst({where:{userId:user.id,photo:name},select:{id:true}}),
     db.pet.findFirst({where:{userId:user.id,photo:name},select:{id:true}}),
   ]);

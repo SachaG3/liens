@@ -1,6 +1,7 @@
 "use client";
 import { createContext, FormHTMLAttributes, ReactNode, useContext, useRef, useState } from "react";
 import { Pencil, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -17,15 +18,19 @@ export function Modal({ title, label, children, secondary = false, icon, descrip
   </Dialog>;
 }
 
-export function ModalForm({ action, ...props }: Omit<FormHTMLAttributes<HTMLFormElement>,"action"> & { action:(formData:FormData)=>Promise<boolean|void> }) {
+export function ModalForm({ action, resetOnSuccess = true, refreshOnSuccess = false, successMessage = "", children, ...props }: Omit<FormHTMLAttributes<HTMLFormElement>,"action"> & { action:(formData:FormData)=>Promise<boolean|void>;resetOnSuccess?:boolean;refreshOnSuccess?:boolean;successMessage?:string }) {
   const close=useContext(ModalCloseContext);
   const formRef=useRef<HTMLFormElement>(null);
+  const router=useRouter();
+  const [status,setStatus]=useState<"idle"|"success"|"error">("idle");
   async function submit(formData:FormData) {
     const success=await action(formData);
     if(success!==false) {
-      formRef.current?.reset();
+      if(resetOnSuccess)formRef.current?.reset();
+      if(refreshOnSuccess)router.refresh();
+      setStatus("success");
       close?.();
-    }
+    } else setStatus("error");
   }
-  return <form ref={formRef} action={submit} {...props}/>;
+  return <form ref={formRef} action={submit} {...props}>{children}{status==="success"&&successMessage&&<p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">{successMessage}</p>}{status==="error"&&<p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">Impossible d’enregistrer ces modifications. Vérifiez les informations choisies.</p>}</form>;
 }

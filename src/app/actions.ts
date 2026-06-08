@@ -39,8 +39,12 @@ export async function updateAccount(form: FormData) {
   if(!name||!email)return false;
   const duplicate=await db.user.findFirst({where:{email,id:{not:user.id}}});
   if(duplicate)return false;
-  await db.user.update({where:{id:user.id},data:{name,email,photo:await saveImage(form.get("photo"),user.photo)}});
-  revalidatePath("/","layout");revalidatePath("/account");
+  const [motherId,fatherId]=[text(form,"motherId")||null,text(form,"fatherId")||null];
+  if(motherId&&fatherId&&motherId===fatherId)return false;
+  const parentIds=[motherId,fatherId].filter((id):id is string=>!!id);
+  if(parentIds.length!==await db.contact.count({where:{userId:user.id,id:{in:parentIds}}}))return false;
+  await db.user.update({where:{id:user.id},data:{name,email,photo:await saveImage(form.get("photo"),user.photo),motherId,fatherId}});
+  revalidatePath("/","layout");revalidatePath("/account");revalidatePath("/map");
   return true;
 }
 
@@ -82,17 +86,20 @@ export async function addContact(form: FormData) {
   const circles = await db.circle.findMany({ where: { userId: user.id, id: { in: requestedCircleIds } }, select: { id: true } });
   const firstName = text(form, "firstName");
   if (!firstName) return false;
+  const [motherId,fatherId]=await validParents(user.id,text(form,"motherId"),text(form,"fatherId"));
   const contact = await db.contact.create({ data: {
     userId: user.id, firstName, lastName: text(form, "lastName"),
     email: text(form, "email"), phone: text(form, "phone"), company: text(form, "company"),
     notes: text(form, "notes"), photo: await saveImage(form.get("photo")), desiredFrequency: Number(text(form, "frequency")) || 30,
     birthday: text(form, "birthday") ? new Date(text(form, "birthday")) : null,
+    motherId, fatherId, gender:familyGender(text(form,"gender")),
     circles: { create: circles.map(({ id: circleId }) => ({ circleId })) },
     relationTags: { create: relationTags.map(tag=>({tag})) },
   }});
   await createMentionLinks(user.id, contact.id, contact.notes);
   revalidatePath("/");
   revalidatePath("/contacts");
+  revalidatePath("/map");
   return true;
 }
 
@@ -104,11 +111,13 @@ export async function updateContact(form: FormData) {
   const requestedCircleIds = form.getAll("circleIds").map(String);
   const relationTags = [...new Set(form.getAll("relationTags").map(String))];
   const circles = await db.circle.findMany({ where: { userId: user.id, id: { in: requestedCircleIds } }, select: { id: true } });
+  const [motherId,fatherId]=await validParents(user.id,text(form,"motherId"),text(form,"fatherId"),id);
   await db.contact.update({ where: { id }, data: {
     firstName: text(form, "firstName") || contact.firstName, lastName: text(form, "lastName"),
     email: text(form, "email"), phone: text(form, "phone"), company: text(form, "company"), relationType: "",
     notes: text(form, "notes"), photo: await saveImage(form.get("photo"),contact.photo), desiredFrequency: Number(text(form, "frequency")) || 30,
     birthday: text(form, "birthday") ? new Date(text(form, "birthday")) : null,
+    motherId, fatherId, gender:familyGender(text(form,"gender")),
     circles: { deleteMany: {}, create: circles.map(({ id: circleId }) => ({ circleId })) },
     relationTags: { deleteMany: {}, create: relationTags.map(tag=>({tag})) },
   }});
@@ -116,6 +125,7 @@ export async function updateContact(form: FormData) {
   revalidatePath("/");
   revalidatePath("/contacts");
   revalidatePath(`/contacts/${id}`);
+  revalidatePath("/map");
   return true;
 }
 
@@ -242,6 +252,41 @@ export async function addContactRelation(form:FormData){
   const [fromContactId,toContactId]=[sourceId,targetId].sort();
   await db.contactLink.upsert({where:{fromContactId_toContactId:{fromContactId,toContactId}},create:{fromContactId,toContactId,source:"manual",label:text(form,"label"),note:text(form,"note")},update:{source:"manual",label:text(form,"label"),note:text(form,"note")}});
   revalidatePath(`/contacts/${sourceId}`);revalidatePath(`/contacts/${targetId}`);revalidatePath("/map");return true;
+}
+
+export async function updateContactRelation(form:FormData){
+  const user=await requireUser();const id=text(form,"id");
+  const link=await db.contactLink.findFirst({where:{id,OR:[{fromContact:{userId:user.id}},{toContact:{userId:user.id}}]}});
+  if(!link)return false;
+  await db.contactLink.update({where:{id},data:{label:text(form,"label"),note:text(form,"note")}});
+  revalidatePath(`/contacts/${link.fromContactId}`);revalidatePath(`/contacts/${link.toContactId}`);revalidatePath("/map");return true;
+}
+
+function familyGender(value:string){return ["woman","man","other"].includes(value)?value:""}
+
+async function validParents(userId:string,motherValue:string,fatherValue:string,contactId?:string):Promise<[string|null,string|null]> {
+  const motherId=motherValue||null,fatherId=fatherValue||null;
+  if((contactId&&(motherId===contactId||fatherId===contactId))||(motherId&&fatherId&&motherId===fatherId))return [null,null];
+  const ids=[motherId,fatherId].filter((id):id is string=>!!id);
+  const allowed=await db.contact.findMany({where:{userId,id:{in:ids}},select:{id:true}});
+  const set=new Set(allowed.map(item=>item.id));
+  let mother=motherId&&set.has(motherId)?motherId:null,father=fatherId&&set.has(fatherId)?fatherId:null;
+  if(contactId){
+    if(mother&&await hasAncestor(mother,contactId))mother=null;
+    if(father&&await hasAncestor(father,contactId))father=null;
+  }
+  return [mother,father];
+}
+
+async function hasAncestor(startId:string,targetId:string) {
+  const seen=new Set<string>();let current=[startId];
+  while(current.length){
+    const rows=await db.contact.findMany({where:{id:{in:current}},select:{motherId:true,fatherId:true}});
+    const next=rows.flatMap(row=>[row.motherId,row.fatherId]).filter((id):id is string=>!!id&&!seen.has(id));
+    if(next.includes(targetId))return true;
+    next.forEach(id=>seen.add(id));current=next;
+  }
+  return false;
 }
 
 export async function deleteContactRelation(form:FormData){
