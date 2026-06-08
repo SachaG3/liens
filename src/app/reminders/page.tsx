@@ -26,10 +26,10 @@ export default async function RemindersPage({searchParams}:{searchParams:Promise
 
   const [reminders,contacts,importantDates]=await Promise.all([
     db.reminder.findMany({where:{contact:{userId:user.id}},include:{contact:true},orderBy:[{done:"asc"},{dueAt:"asc"}]}),
-    db.contact.findMany({where:{userId:user.id},select:{id:true,firstName:true,lastName:true,photo:true,birthday:true},orderBy:{firstName:"asc"}}),
+    db.contact.findMany({where:{userId:user.id},select:{id:true,firstName:true,lastName:true,photo:true,birthday:true,followUpStatus:true},orderBy:{firstName:"asc"}}),
     db.importantDate.findMany({where:{contact:{userId:user.id}},include:{contact:true},orderBy:{date:"asc"}}),
   ]);
-  const open=reminders.filter(r=>!r.done),done=reminders.filter(r=>r.done);
+  const open=reminders.filter(r=>!r.done&&(r.kind!=="contact"||r.contact.followUpStatus==="active")),done=reminders.filter(r=>r.done);
   const overdue=open.filter(r=>r.dueAt<TODAY),upcoming=open.filter(r=>r.dueAt>=TODAY);
 
   // Pagination pour les rappels terminés
@@ -38,9 +38,9 @@ export default async function RemindersPage({searchParams}:{searchParams:Promise
   const currentPage=Math.min(Math.max(1,parseInt(page)||1),totalPages);
   const paginatedDone=done.slice((currentPage-1)*ITEMS_PER_PAGE,currentPage*ITEMS_PER_PAGE);
 
-  const birthdays=contacts.filter(c=>c.birthday).map(c=>({...c,next:nextBirthday(c.birthday!)})).filter(c=>c.next.getTime()-TODAY.getTime()<=90*86_400_000).sort((a,b)=>a.next.getTime()-b.next.getTime());
+  const birthdays=contacts.filter(c=>c.birthday&&c.followUpStatus!=="deceased").map(c=>({...c,next:nextBirthday(c.birthday!)})).filter(c=>c.next.getTime()-TODAY.getTime()<=90*86_400_000).sort((a,b)=>a.next.getTime()-b.next.getTime());
   const dates=importantDates.map(item=>({...item,next:item.recurring?nextBirthday(item.date):item.date})).filter(item=>item.next>=TODAY&&item.next.getTime()-TODAY.getTime()<=90*86_400_000).sort((a,b)=>a.next.getTime()-b.next.getTime());
-  return <Shell><div className="mx-auto max-w-5xl"><header className="mb-9 flex flex-wrap items-end justify-between gap-4"><div><p className="mb-2 text-sm text-muted-foreground">Votre mémoire externe</p><h1 className="text-3xl font-semibold tracking-tight">Rappels et dates</h1><p className="mt-2 text-sm text-muted-foreground">Ce qui mérite votre attention, au bon moment.</p></div><Modal title="Nouveau rappel" label="Rappel"><ReminderForm contacts={contacts}/></Modal></header>
+  return <Shell><div className="mx-auto max-w-5xl"><header className="mb-9 flex flex-wrap items-end justify-between gap-4"><div><p className="mb-2 text-sm text-muted-foreground">Votre mémoire externe</p><h1 className="text-3xl font-semibold tracking-tight">Rappels et dates</h1><p className="mt-2 text-sm text-muted-foreground">Ce qui mérite votre attention, au bon moment.</p></div><Modal title="Nouveau rappel" label="Rappel"><ReminderForm contacts={contacts.filter(c=>c.followUpStatus==="active")}/></Modal></header>
     <div className="grid gap-8 lg:grid-cols-[1.35fr_.75fr]"><div className="space-y-8">
       <ReminderSection title="En retard" icon={<Clock3/>} reminders={overdue} empty="Aucun rappel en retard." destructive/>
       <ReminderSection title="À venir" icon={<Bell/>} reminders={upcoming} empty="Aucun rappel à venir."/>

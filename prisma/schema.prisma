@@ -49,6 +49,9 @@ model Contact {
   birthday         DateTime?
   notes            String          @default("")
   desiredFrequency Int             @default(30)
+  followUpStatus   String          @default("active")
+  statusNote       String          @default("")
+  deceasedAt       DateTime?
   source           String          @default("manual")
   sourceId         String          @default("")
   gender           String          @default("")

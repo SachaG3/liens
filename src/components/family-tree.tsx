@@ -6,7 +6,7 @@ import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node
 import "@xyflow/react/dist/style.css";
 import { ProfileAvatar } from "@/components/profile-avatar";
 
-export type FamilyPerson={id:string;firstName:string;lastName:string;photo:string;gender:string;motherId:string|null;fatherId:string|null};
+export type FamilyPerson={id:string;firstName:string;lastName:string;photo:string;gender:string;motherId:string|null;fatherId:string|null;followUpStatus?:string};
 type Side="maternal"|"paternal"|"both";
 type ParentRole="mother"|"father";
 type AncestorMeta={side:Side;depth:number;role:ParentRole};
@@ -57,7 +57,7 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     placeSide(paternal,-1,positions);
     placeShared(both,paternal.length,maternal.length,positions);
     placeSide(maternal,1,positions);
-    for(const {person,kinship} of members)nodes.push({id:person.id,type:"family",position:{x:positions.get(person.id)??0,y:generation*190},data:{label:fullName(person),relationship:kinship.label,photo:person.photo,side:kinship.side} satisfies FamilyData});
+    for(const {person,kinship} of members)nodes.push({id:person.id,type:"family",position:{x:positions.get(person.id)??0,y:generation*190},data:{label:fullName(person),relationship:`${kinship.label}${person.followUpStatus==="deceased"?" · Décédé":""}`,photo:person.photo,side:kinship.side} satisfies FamilyData});
   }
 
   const included=new Set(kinships.keys());

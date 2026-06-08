@@ -7,7 +7,7 @@ import { RelationshipMap } from "@/components/relationship-map";
 import { cn } from "@/lib/utils";
 
 type MapCircle={id:string;name:string;color:string};
-type MapPerson=FamilyPerson&{company:string;relationTags:string[];score:number;circles:MapCircle[]};
+type MapPerson=FamilyPerson&{company:string;relationTags:string[];score:number;followUpStatus:string;circles:MapCircle[]};
 type MapLink={fromContactId:string;toContactId:string;label:string;source:string};
 
 export function MapTabs({user,people,circles,links}:{user:{name:string;photo:string;motherId:string|null;fatherId:string|null};people:MapPerson[];circles:MapCircle[];links:MapLink[]}) {

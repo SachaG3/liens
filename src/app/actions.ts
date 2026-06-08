@@ -44,6 +44,9 @@ export async function updateAccount(form: FormData) {
   const parentIds=[motherId,fatherId].filter((id):id is string=>!!id);
   if(parentIds.length!==await db.contact.count({where:{userId:user.id,id:{in:parentIds}}}))return false;
   await db.user.update({where:{id:user.id},data:{name,email,photo:await saveImage(form.get("photo"),user.photo),motherId,fatherId}});
+  await db.contactRelationTag.deleteMany({where:{contact:{userId:user.id},tag:{in:["Mère","Père"]}}});
+  if(motherId)await db.contactRelationTag.create({data:{contactId:motherId,tag:"Mère"}});
+  if(fatherId)await db.contactRelationTag.create({data:{contactId:fatherId,tag:"Père"}});
   revalidatePath("/","layout");revalidatePath("/account");revalidatePath("/map");
   return true;
 }
@@ -82,7 +85,7 @@ export async function updateCircle(form: FormData) {
 export async function addContact(form: FormData) {
   const user = await requireUser();
   const requestedCircleIds = form.getAll("circleIds").map(String);
-  const relationTags = [...new Set(form.getAll("relationTags").map(String))];
+  const relationTags = normalizedRelationTags(form);
   const circles = await db.circle.findMany({ where: { userId: user.id, id: { in: requestedCircleIds } }, select: { id: true } });
   const firstName = text(form, "firstName");
   if (!firstName) return false;
@@ -92,6 +95,7 @@ export async function addContact(form: FormData) {
     email: text(form, "email"), phone: text(form, "phone"), company: text(form, "company"),
     notes: text(form, "notes"), photo: await saveImage(form.get("photo")), desiredFrequency: Number(text(form, "frequency")) || 30,
     birthday: text(form, "birthday") ? new Date(text(form, "birthday")) : null,
+    followUpStatus:followUpStatus(text(form,"followUpStatus")),statusNote:text(form,"statusNote"),deceasedAt:text(form,"deceasedAt")?new Date(text(form,"deceasedAt")):null,
     motherId, fatherId, gender:familyGender(text(form,"gender")),
     circles: { create: circles.map(({ id: circleId }) => ({ circleId })) },
     relationTags: { create: relationTags.map(tag=>({tag})) },
@@ -109,7 +113,7 @@ export async function updateContact(form: FormData) {
   const contact = await db.contact.findFirst({ where: { id, userId: user.id } });
   if (!contact) return false;
   const requestedCircleIds = form.getAll("circleIds").map(String);
-  const relationTags = [...new Set(form.getAll("relationTags").map(String))];
+  const relationTags = normalizedRelationTags(form);
   const circles = await db.circle.findMany({ where: { userId: user.id, id: { in: requestedCircleIds } }, select: { id: true } });
   const [motherId,fatherId]=await validParents(user.id,text(form,"motherId"),text(form,"fatherId"),id);
   await db.contact.update({ where: { id }, data: {
@@ -117,6 +121,7 @@ export async function updateContact(form: FormData) {
     email: text(form, "email"), phone: text(form, "phone"), company: text(form, "company"), relationType: "",
     notes: text(form, "notes"), photo: await saveImage(form.get("photo"),contact.photo), desiredFrequency: Number(text(form, "frequency")) || 30,
     birthday: text(form, "birthday") ? new Date(text(form, "birthday")) : null,
+    followUpStatus:followUpStatus(text(form,"followUpStatus")),statusNote:text(form,"statusNote"),deceasedAt:text(form,"deceasedAt")?new Date(text(form,"deceasedAt")):null,
     motherId, fatherId, gender:familyGender(text(form,"gender")),
     circles: { deleteMany: {}, create: circles.map(({ id: circleId }) => ({ circleId })) },
     relationTags: { deleteMany: {}, create: relationTags.map(tag=>({tag})) },
@@ -156,7 +161,7 @@ export async function addQuickInteraction(form: FormData) {
   const user = await requireUser();
   const contactId = text(form, "contactId");
   const contact = await db.contact.findFirst({ where: { id: contactId, userId: user.id } });
-  if (!contact) return;
+  if (!contact || contact.followUpStatus!=="active") return;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const alreadyLogged = await db.interaction.findFirst({ where: { contactId, happenedAt: { gte: today }, note: "Contacté aujourd’hui" } });
@@ -349,7 +354,7 @@ export async function addReminder(form: FormData) {
   const contactId = text(form, "contactId");
   const kind = reminderKind(text(form, "kind"));
   const contact = await db.contact.findFirst({ where: { id: contactId, userId: user.id } });
-  if (!contact || !text(form, "title") || !text(form, "dueAt")) return false;
+  if (!contact || !text(form, "title") || !text(form, "dueAt") || (kind==="contact"&&contact.followUpStatus!=="active")) return false;
   await db.reminder.create({ data: { contactId, kind, title: text(form, "title"), dueAt: new Date(text(form, "dueAt")) } });
   revalidatePath("/");
   revalidatePath("/reminders");
@@ -407,6 +412,14 @@ export async function deleteReminder(form: FormData) {
 
 function reminderKind(value:string) {
   return ["contact","no_contact","other"].includes(value)?value:"contact";
+}
+
+function followUpStatus(value:string) {
+  return ["active","no_contact","deceased"].includes(value)?value:"active";
+}
+
+function normalizedRelationTags(form:FormData) {
+  return [...new Set(form.getAll("relationTags").map(String))];
 }
 
 export async function deleteContact(form: FormData) {

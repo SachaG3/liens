@@ -7,7 +7,7 @@ import "@xyflow/react/dist/style.css";
 import { cn } from "@/lib/utils";
 
 type MapCircle={id:string;name:string;color:string};
-type MapPerson={id:string;firstName:string;lastName:string;company:string;relationTags:string[];score:number;circles:Array<MapCircle>};
+type MapPerson={id:string;firstName:string;lastName:string;company:string;relationTags:string[];score:number;followUpStatus:string;circles:Array<MapCircle>};
 
 // Composant de nœud personnalisé avec handles
 const CustomNode = ({ data }: { data: { label: string } }) => (
@@ -143,7 +143,7 @@ export function RelationshipMap({ userName, people, circles, links }: {userName:
             stroke: color,
             strokeWidth: edgeWidth,
           },
-          animated: person.score < 45,
+          animated: person.followUpStatus==="active"&&person.score < 45,
         });
       });
     });
