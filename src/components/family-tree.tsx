@@ -16,7 +16,7 @@ type FamilyData={label:string;relationship:string;photo:string;side:Side;isUser?
 const sideStyles:Record<Side,string>={maternal:"border-rose-400 bg-rose-50 dark:bg-rose-950/40",paternal:"border-sky-400 bg-sky-50 dark:bg-sky-950/40",both:"border-violet-400 bg-violet-50 dark:bg-violet-950/40"};
 
 function FamilyNode({data}:{data:FamilyData}) {
-  return <><Handle type="target" position={Position.Top} className="opacity-0"/><div className={`flex w-48 items-center gap-3 rounded-xl border-2 p-3 shadow-sm ${data.isUser?"border-foreground bg-foreground text-background":sideStyles[data.side]}`}><ProfileAvatar photo={data.photo} name={data.label} className={`size-10 ${data.isUser?"ring-2 ring-background/30":""}`}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{data.label}</p><p className={`truncate text-[11px] ${data.isUser?"text-background/70":"text-muted-foreground"}`}>{data.relationship}</p></div></div><Handle type="source" position={Position.Bottom} className="opacity-0"/></>;
+  return <><Handle type="target" position={Position.Top} className="opacity-0"/><div title={`${data.label} · ${data.relationship}`} className={`flex min-h-20 w-56 items-center gap-3 rounded-xl border-2 p-3 shadow-sm ${data.isUser?"border-foreground bg-foreground text-background":sideStyles[data.side]}`}><ProfileAvatar photo={data.photo} name={data.label} className={`size-10 shrink-0 ${data.isUser?"ring-2 ring-background/30":""}`}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{data.label}</p><p className={`mt-0.5 text-[11px] leading-snug ${data.isUser?"text-background/70":"text-muted-foreground"}`}>{data.relationship}</p></div></div><Handle type="source" position={Position.Bottom} className="opacity-0"/></>;
 }
 
 const nodeTypes:NodeTypes={family:FamilyNode};
@@ -57,7 +57,7 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     placeSide(paternal,-1,positions);
     placeShared(both,paternal.length,maternal.length,positions);
     placeSide(maternal,1,positions);
-    for(const {person,kinship} of members)nodes.push({id:person.id,type:"family",position:{x:positions.get(person.id)??0,y:generation*170},data:{label:fullName(person),relationship:kinship.label,photo:person.photo,side:kinship.side} satisfies FamilyData});
+    for(const {person,kinship} of members)nodes.push({id:person.id,type:"family",position:{x:positions.get(person.id)??0,y:generation*190},data:{label:fullName(person),relationship:kinship.label,photo:person.photo,side:kinship.side} satisfies FamilyData});
   }
 
   const included=new Set(kinships.keys());
@@ -108,15 +108,15 @@ function personAncestors(person:FamilyPerson,personMap:Map<string,FamilyPerson>)
 }
 
 function collateralLabel(gender:string,egoDepth:number,personDepth:number,sharedCount:number,side:Side) {
-  if(egoDepth===1&&personDepth===1)return `${sharedCount===1?"Demi-":""}${gendered(gender,"sœur","frère","frère / sœur")}`;
+  if(egoDepth===1&&personDepth===1)return sharedCount===1?gendered(gender,"Demi-sœur","Demi-frère","Demi-frère ou demi-sœur"):gendered(gender,"Sœur","Frère","Frère ou sœur");
   if(personDepth===1&&egoDepth>=2){
     const prefix=egoDepth===2?"":`${"Arrière-".repeat(Math.max(0,egoDepth-3))}grand-`;
-    return `${sharedCount===1?"Demi-":""}${prefix}${gendered(gender,"tante","oncle","oncle / tante")}${kinSideSuffix(side,gender)}`;
+    return `${sharedCount===1?"Demi-":""}${prefix}${gendered(gender,"tante","oncle","oncle ou tante")}${kinSideSuffix(side,gender)}`;
   }
   if(personDepth>=2&&egoDepth>=2){
     const degree=Math.min(egoDepth,personDepth)-1;
     const removed=Math.abs(egoDepth-personDepth);
-    const base=degree===1?gendered(gender,"Cousine","Cousin","Cousin / cousine"):`${gendered(gender,"Cousine","Cousin","Cousin / cousine")} au ${degree}e degré`;
+    const base=degree===1?gendered(gender,"Cousine","Cousin","Cousin·e"):`${gendered(gender,"Cousine","Cousin","Cousin·e")} au ${degree}e degré`;
     return `${base}${removed?` avec ${removed} génération${removed>1?"s":""} d’écart`:""}${kinSideSuffix(side,gender)}`;
   }
   return `Famille${sidePhrase(side)}`;
@@ -131,18 +131,18 @@ function ancestorLabel(meta:AncestorMeta) {
 function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:-1|1,positions:Map<string,number>) {
   const grouped=new Map<string,typeof items>();
   for(const item of items)grouped.set(item.kinship.branch,[...(grouped.get(item.kinship.branch)??[]),item]);
-  let cursor=320;
-  for(const group of grouped.values()){for(const item of group){positions.set(item.person.id,direction*cursor);cursor+=240}cursor+=80}
+  let cursor=360;
+  for(const group of grouped.values()){for(const item of group){positions.set(item.person.id,direction*cursor);cursor+=280}cursor+=100}
 }
 function placeShared(items:Array<{person:FamilyPerson;kinship:Kinship}>,paternalCount:number,maternalCount:number,positions:Map<string,number>) {
-  let left=400+paternalCount*240,right=400+maternalCount*240;
-  items.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=240}else{positions.set(item.person.id,right);right+=240}});
+  let left=440+paternalCount*280,right=440+maternalCount*280;
+  items.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=280}else{positions.set(item.person.id,right);right+=280}});
 }
 function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){return a.kinship.branch.localeCompare(b.kinship.branch)||a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr")}
 function fullName(person:FamilyPerson){return `${person.firstName} ${person.lastName}`.trim()}
 function gendered(gender:string,woman:string,man:string,unknown:string){return gender==="woman"?woman:gender==="man"?man:unknown}
 function sideSuffix(side:Side,feminine:boolean){return side==="maternal"?` ${feminine?"maternelle":"maternel"}`:side==="paternal"?` ${feminine?"paternelle":"paternel"}`:""}
-function sidePhrase(side:Side){return side==="maternal"?" maternel":side==="paternal"?" paternel":""}
+function sidePhrase(side:Side){return side==="maternal"?" maternel·le":side==="paternal"?" paternel·le":""}
 function kinSideSuffix(side:Side,gender:string){return gender==="woman"?sideSuffix(side,true):gender==="man"?sideSuffix(side,false):sidePhrase(side)}
 function mergeSides(sides:Side[]):Side{return sides.includes("both")||(sides.includes("maternal")&&sides.includes("paternal"))?"both":sides[0]??"both"}
 function Legend({className,text}:{className:string;text:string}){return <span className="flex items-center gap-2"><span className={`size-3 rounded border-2 ${className}`}/>{text}</span>}
