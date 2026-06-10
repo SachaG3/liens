@@ -74,14 +74,38 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
   for(const [id,kinship] of kinships){const person=personMap.get(id);if(person)rows.set(kinship.generation,[...(rows.get(kinship.generation)??[]),{person,kinship}])}
 
   for(const [generation,members] of [...rows].sort(([a],[b])=>a-b)) {
-    const paternal=members.filter(item=>item.kinship.side==="paternal").sort(familySort);
-    const both=members.filter(item=>item.kinship.side==="both").sort(familySort);
-    const maternal=members.filter(item=>item.kinship.side==="maternal").sort(familySort);
+    // Séparer les ancêtres directs (Mère, Père, grands-parents) des collatéraux (oncles, tantes)
+    const directAncestors=members.filter(item=>item.kinship.label.match(/^(Mère|Père|.*grand-)/));
+    const collaterals=members.filter(item=>!item.kinship.label.match(/^(Mère|Père|.*grand-)/));
+
+    // Traiter d'abord les ancêtres directs
+    const directPaternal=directAncestors.filter(item=>item.kinship.side==="paternal").sort(familySort);
+    const directBoth=directAncestors.filter(item=>item.kinship.side==="both").sort(familySort);
+    const directMaternal=directAncestors.filter(item=>item.kinship.side==="maternal").sort(familySort);
+
     const positions=new Map<string,number>();
-    placeSide(paternal,-1,positions,personMap,nodes);
-    placeShared(both,paternal.length,maternal.length,positions);
-    placeSide(maternal,1,positions,personMap,nodes);
-    for(const {person,kinship} of members)nodes.push({id:person.id,type:"family",position:{x:positions.get(person.id)??0,y:generation*190},data:{label:fullName(person),relationship:`${kinship.label}${person.followUpStatus==="deceased"?" · Décédé":""}`,photo:person.photo,side:kinship.side} satisfies FamilyData});
+    placeSide(directPaternal,-1,positions,personMap,nodes);
+    placeShared(directBoth,directPaternal.length,directMaternal.length,positions);
+    placeSide(directMaternal,1,positions,personMap,nodes);
+
+    // Ajouter les nœuds des ancêtres directs
+    for(const {person,kinship} of directAncestors){
+      nodes.push({id:person.id,type:"family",position:{x:positions.get(person.id)??0,y:generation*190},data:{label:fullName(person),relationship:`${kinship.label}${person.followUpStatus==="deceased"?" · Décédé":""}`,photo:person.photo,side:kinship.side} satisfies FamilyData});
+    }
+
+    // Ensuite traiter les collatéraux (qui peuvent maintenant voir les positions des parents)
+    const collateralPaternal=collaterals.filter(item=>item.kinship.side==="paternal").sort(familySort);
+    const collateralBoth=collaterals.filter(item=>item.kinship.side==="both").sort(familySort);
+    const collateralMaternal=collaterals.filter(item=>item.kinship.side==="maternal").sort(familySort);
+
+    placeSide(collateralPaternal,-1,positions,personMap,nodes);
+    placeShared(collateralBoth,collateralPaternal.length,collateralMaternal.length,positions);
+    placeSide(collateralMaternal,1,positions,personMap,nodes);
+
+    // Ajouter les nœuds des collatéraux
+    for(const {person,kinship} of collaterals){
+      nodes.push({id:person.id,type:"family",position:{x:positions.get(person.id)??0,y:generation*190},data:{label:fullName(person),relationship:`${kinship.label}${person.followUpStatus==="deceased"?" · Décédé":""}`,photo:person.photo,side:kinship.side} satisfies FamilyData});
+    }
   }
 
   const included=new Set(kinships.keys());
@@ -246,6 +270,8 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
   });
 
   let cursor=360;
+  const usedPositions=new Set<number>();
+
   for(const [groupKey,group] of groupsArray){
     // Si c'est un groupe d'enfants avec parent positionné, centrer sous le parent
     if(groupKey.startsWith("parent-")){
@@ -256,8 +282,48 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
         const childCount=group.length;
         const totalWidth=(childCount-1)*280;
         let childCursor=parentX-totalWidth/2;
+
+        // Vérifier les collisions avec les positions déjà utilisées
+        let needsAdjustment=false;
+        const proposedPositions:number[]=[];
+        for(let i=0;i<childCount;i++){
+          const pos=childCursor+i*280;
+          proposedPositions.push(pos);
+          // Vérifier si cette position est trop proche d'une position existante (moins de 260px)
+          for(const usedPos of usedPositions){
+            if(Math.abs(pos-usedPos)<260){
+              needsAdjustment=true;
+              break;
+            }
+          }
+        }
+
+        if(needsAdjustment){
+          // Décaler le groupe pour éviter la collision
+          // Trouver le premier espace libre
+          let testCursor=direction*cursor;
+          while(true){
+            let collision=false;
+            for(let i=0;i<childCount;i++){
+              const testPos=testCursor+i*280*direction;
+              for(const usedPos of usedPositions){
+                if(Math.abs(testPos-usedPos)<260){
+                  collision=true;
+                  break;
+                }
+              }
+              if(collision)break;
+            }
+            if(!collision)break;
+            testCursor+=280*direction;
+          }
+          childCursor=testCursor;
+          cursor=Math.abs(testCursor)/280+1;
+        }
+
         for(const item of group){
           positions.set(item.person.id,childCursor);
+          usedPositions.add(childCursor);
           childCursor+=280;
         }
         continue;
@@ -265,7 +331,9 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
     }
     // Placement par défaut pour les ancêtres ou groupes sans parent
     for(const item of group){
-      positions.set(item.person.id,direction*cursor);
+      const pos=direction*cursor;
+      positions.set(item.person.id,pos);
+      usedPositions.add(pos);
       cursor+=280;
     }
     cursor+=100;
