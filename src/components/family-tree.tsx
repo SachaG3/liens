@@ -21,7 +21,7 @@ type GenerationData={label:string};
 const sideStyles:Record<Side,string>={maternal:"border-rose-400 bg-rose-50 dark:bg-rose-950/40",paternal:"border-sky-400 bg-sky-50 dark:bg-sky-950/40",both:"border-violet-400 bg-violet-50 dark:bg-violet-950/40"};
 
 function FamilyNode({data}:{data:FamilyData}) {
-    return <><Handle type="target" position={Position.Top} className="opacity-0"/><div title={`${data.label} · ${data.relationship}`} className={cn("flex min-h-20 w-56 items-center gap-3 rounded-xl border-2 p-3 shadow-sm transition-[box-shadow,border-color] duration-150 hover:shadow-md",data.isUser?"border-foreground bg-foreground text-background shadow-lg ring-4 ring-foreground/10":sideStyles[data.side])}><ProfileAvatar photo={data.photo} name={data.label} className={`size-10 shrink-0 ${data.isUser?"ring-2 ring-background/30":""}`}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{data.label}</p><p className={`mt-0.5 text-[11px] leading-snug ${data.isUser?"text-background/70":"text-muted-foreground"}`}>{data.relationship}</p></div>{data.isUser&&<span className="ml-auto grid size-7 shrink-0 place-items-center rounded-full bg-background/15"><UserRound className="size-3.5"/></span>}</div><Handle type="source" position={Position.Bottom} className="opacity-0"/></>;
+    return <><Handle type="target" position={Position.Top} className="opacity-0"/><Handle id="left" type="target" position={Position.Left} className="opacity-0"/><div title={`${data.label} · ${data.relationship}`} className={cn("flex min-h-20 w-56 items-center gap-3 rounded-xl border-2 p-3 shadow-sm transition-[box-shadow,border-color] duration-150 hover:shadow-md",data.isUser?"border-foreground bg-foreground text-background shadow-lg ring-4 ring-foreground/10":sideStyles[data.side])}><ProfileAvatar photo={data.photo} name={data.label} className={`size-10 shrink-0 ${data.isUser?"ring-2 ring-background/30":""}`}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{data.label}</p><p className={`mt-0.5 text-[11px] leading-snug ${data.isUser?"text-background/70":"text-muted-foreground"}`}>{data.relationship}</p></div>{data.isUser&&<span className="ml-auto grid size-7 shrink-0 place-items-center rounded-full bg-background/15"><UserRound className="size-3.5"/></span>}</div><Handle type="source" position={Position.Bottom} className="opacity-0"/><Handle id="right" type="source" position={Position.Right} className="opacity-0"/></>;
 }
 
 function FamilyZone({data}:{data:ZoneData}) {
@@ -204,7 +204,9 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
         // Éviter les doublons
         const edgeId=[personAId,personBId].sort().join("-spouse-");
         if(edges.some(e=>e.id===edgeId))return;
-        edges.push({id:edgeId,source:personAId,target:personBId,type:"straight",style:spouseEdgeStyle,label:"❤",labelStyle:{fontSize:14}});
+        const left=nodeA.position.x<=nodeB.position.x?nodeA:nodeB;
+        const right=left===nodeA?nodeB:nodeA;
+        edges.push({id:edgeId,source:left.id,target:right.id,sourceHandle:"right",targetHandle:"left",type:"straight",style:spouseEdgeStyle,label:"❤",labelStyle:{fontSize:14}});
     };
     // Lien de couple de l'utilisateur
     if(user.spouseId)addSpouseEdge("me",user.spouseId);

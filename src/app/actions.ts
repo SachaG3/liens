@@ -295,11 +295,12 @@ function familyGender(value:string){return ["woman","man","other"].includes(valu
 
 async function validParents(userId:string,motherValue:string,fatherValue:string,spouseValue:string,contactId?:string):Promise<[string|null,string|null,string|null]> {
   const motherId=motherValue||null,fatherId=fatherValue||null,spouseId=spouseValue||null;
-  if((contactId&&(motherId===contactId||fatherId===contactId||spouseId===contactId))||(motherId&&fatherId&&motherId===fatherId))return [null,null,null];
+  if((contactId&&(motherId===contactId||fatherId===contactId||spouseId===contactId))||(motherId&&fatherId&&motherId===fatherId)||(spouseId&&(spouseId===motherId||spouseId===fatherId)))return [null,null,null];
   const ids=[motherId,fatherId,spouseId].filter((id):id is string=>!!id);
   const allowed=await db.contact.findMany({where:{userId,id:{in:ids}},select:{id:true}});
   const set=new Set(allowed.map(item=>item.id));
-  let mother=motherId&&set.has(motherId)?motherId:null,father=fatherId&&set.has(fatherId)?fatherId:null,spouse=spouseId&&set.has(spouseId)?spouseId:null;
+  let mother=motherId&&set.has(motherId)?motherId:null,father=fatherId&&set.has(fatherId)?fatherId:null;
+  const spouse=spouseId&&set.has(spouseId)?spouseId:null;
   if(contactId){
     if(mother&&await hasAncestor(mother,contactId))mother=null;
     if(father&&await hasAncestor(father,contactId))father=null;
