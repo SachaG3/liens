@@ -170,7 +170,10 @@ function collateralKinship(person:FamilyPerson,ego:Map<string,AncestorMeta>,pers
   const side=mergeSides(nearest.map(item=>item.side));
   const sharedCount=nearest.length;
   const label=collateralLabel(person.gender,closest.egoDepth,closest.personDepth,sharedCount,side);
-  return {side,generation:closest.personDepth-closest.egoDepth,label,branch:`${side}-${closest.id}`,rank:closest.egoDepth+closest.personDepth};
+  // Pour les cousins (même génération que vous), grouper par parent direct au lieu de l'ancêtre commun
+  const generation=closest.personDepth-closest.egoDepth;
+  const branchId=generation===0?(person.motherId||person.fatherId||closest.id):closest.id;
+  return {side,generation,label,branch:`${side}-${branchId}`,rank:closest.egoDepth+closest.personDepth};
 }
 
 function personAncestors(person:FamilyPerson,personMap:Map<string,FamilyPerson>) {
@@ -208,17 +211,7 @@ function ancestorLabel(meta:AncestorMeta) {
 
 function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:-1|1,positions:Map<string,number>) {
   const grouped=new Map<string,typeof items>();
-  for(const item of items){
-    // Pour les cousins et autres collatéraux, grouper par parent direct au lieu de l'ancêtre commun
-    // Cela évite que Liam (fils de Annie) et Mickael (fils de Didier) soient groupés ensemble
-    const isCousin=item.kinship.label.includes("Cousin")||item.kinship.label.includes("Cousine");
-    if(isCousin){
-      const parentId=item.person.motherId||item.person.fatherId||item.person.id;
-      grouped.set(`parent-${parentId}`,[...(grouped.get(`parent-${parentId}`)??[]),item]);
-    }else{
-      grouped.set(item.kinship.branch,[...(grouped.get(item.kinship.branch)??[]),item]);
-    }
-  }
+  for(const item of items)grouped.set(item.kinship.branch,[...(grouped.get(item.kinship.branch)??[]),item]);
   let cursor=360;
   for(const group of grouped.values()){for(const item of group){positions.set(item.person.id,direction*cursor);cursor+=280}cursor+=100}
 }
