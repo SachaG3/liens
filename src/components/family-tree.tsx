@@ -143,7 +143,7 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     arrangeGenerationGroups(nodes,personMap,user.spouseId);
 
     const edges:Edge[]=[];
-    const familyJunctions=new Map<string,{id:string;node:Node}>();
+    const familyJunctions=new Map<string,{id:string;node:Node;children:string[]}>();
     const edgeStyle={stroke:"#94a3b8",strokeWidth:1.75};
     const connectFamily=(childId:string,motherId:string|null,fatherId:string|null)=>{
         const child=personNodes.get(childId);
@@ -157,7 +157,7 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
             if(!family){
                 const junctionId=`junction-family-${parentIds.join("-")}`;
                 const junction={id:junctionId,type:"junction",position:{x:(mother.position.x+father.position.x+216)/2-4,y:child.position.y-72},data:{side:(child.data as FamilyData).side},selectable:false,draggable:false,zIndex:2} satisfies Node;
-                family={id:junctionId,node:junction};
+                family={id:junctionId,node:junction,children:[]};
                 familyJunctions.set(familyKey,family);
                 nodes.push(junction);
                 edges.push(
@@ -165,7 +165,7 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
                     {id:`${father.id}-${junctionId}`,source:father.id,target:junctionId,type:"step",style:edgeStyle},
                 );
             }
-            edges.push({id:`${family.id}-${childId}`,source:family.id,target:childId,type:"independentParent",data:{laneOffset:34+stableLane(`${family.id}-${childId}`)*10},style:edgeStyle});
+            family.children.push(childId);
             return;
         }
         const parent=mother??father;
@@ -173,6 +173,19 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     };
     connectFamily("me",user.motherId,user.fatherId);
     for(const id of included){const person=personMap.get(id);if(person)connectFamily(id,person.motherId,person.fatherId)}
+    for(const family of familyJunctions.values()){
+        const children=family.children.flatMap(id=>personNodes.has(id)?[personNodes.get(id)!]:[]);
+        if(!children.length)continue;
+        family.node.position.x=averageX(children)+108-4;
+        family.node.position.y=Math.min(...children.map(child=>child.position.y))-72;
+        for(const child of children)edges.push({
+            id:`${family.id}-${child.id}`,
+            source:family.id,
+            target:child.id,
+            type:children.length===1?"straight":"step",
+            style:edgeStyle,
+        });
+    }
 
     // Ajouter les liens de couple (spouse) comme des arêtes horizontales
     const spouseEdgeStyle={stroke:"#e879a0",strokeWidth:2.5,strokeDasharray:"6 4"};
