@@ -153,6 +153,23 @@ export async function addInteraction(form: FormData) {
   return true;
 }
 
+export async function addGroupInteraction(form: FormData) {
+  const user = await requireUser();
+  const requestedContactIds = [...new Set(form.getAll("contactIds").map(String))];
+  const contacts = await db.contact.findMany({ where: { id: { in: requestedContactIds }, userId: user.id }, select: { id: true } });
+  if (contacts.length < 2 || contacts.length !== requestedContactIds.length) return false;
+  const note = text(form, "note");
+  const type = text(form, "type") || "meeting";
+  const happenedAt = text(form, "happenedAt") ? new Date(text(form, "happenedAt")) : new Date();
+  if (Number.isNaN(happenedAt.getTime())) return false;
+  await db.$transaction(contacts.map(({ id: contactId }) => db.interaction.create({ data: { contactId, type, note, happenedAt } })));
+  await Promise.all(contacts.map(({ id }) => createMentionLinks(user.id, id, note)));
+  revalidatePath("/");
+  revalidatePath("/contacts");
+  for (const { id } of contacts) revalidatePath(`/contacts/${id}`);
+  return true;
+}
+
 export async function updateInteraction(form:FormData){
   const user=await requireUser();const id=text(form,"id");
   const interaction=await db.interaction.findFirst({where:{id,contact:{userId:user.id}}});if(!interaction)return false;

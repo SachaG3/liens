@@ -1,4 +1,4 @@
-import { addCircle, addContact, addContactRelation, addConversationItem, addCustomField, addDebt, addGiftIdea, addImportantDate, addInteraction, addJournalEntry, addPet, addReminder, updateAccount, updateCircle, updateContact, updateContactRelation, updateConversationItem, updateCustomField, updateDebt, updateGiftIdea, updateImportantDate, updateInteraction, updateJournalEntry, updatePassword, updatePet, updateReminder } from "@/app/actions";
+import { addCircle, addContact, addContactRelation, addConversationItem, addCustomField, addDebt, addGiftIdea, addGroupInteraction, addImportantDate, addInteraction, addJournalEntry, addPet, addReminder, updateAccount, updateCircle, updateContact, updateContactRelation, updateConversationItem, updateCustomField, updateDebt, updateGiftIdea, updateImportantDate, updateInteraction, updateJournalEntry, updatePassword, updatePet, updateReminder } from "@/app/actions";
 import { CheckPill, FormField, NativeSelect, SubmitButton, TextAreaField, TextField } from "@/components/form-controls";
 import { MentionTextarea } from "@/components/mention-textarea";
 import { ModalForm } from "@/components/modal";
@@ -89,6 +89,15 @@ export function InteractionForm({ contacts, people = contacts }: { contacts:Ment
     <FormField label="Type"><NativeSelect name="type"><option value="message">Message</option><option value="call">Appel</option><option value="meeting">Rencontre</option><option value="email">E-mail</option></NativeSelect></FormField>
     <FormField label="Note" hint="Tapez @ pour mentionner les personnes évoquées."><MentionTextarea people={people} name="note" rows={3} placeholder="De quoi avez-vous parlé ?"/></FormField>
     <SubmitButton>Enregistrer l’échange</SubmitButton>
+  </ModalForm>;
+}
+
+export function GroupInteractionForm({contacts}:{contacts:MentionPerson[]}) {
+  return <ModalForm action={addGroupInteraction} noValidate className="grid gap-4">
+    <fieldset className="grid gap-1.5"><legend className="text-sm font-medium">Personnes présentes</legend><div className="max-h-52 overflow-y-auto rounded-lg border bg-background p-3"><div className="flex flex-wrap gap-2">{contacts.map(contact=><CheckPill key={contact.id} label={`${contact.firstName} ${contact.lastName}`} name="contactIds" value={contact.id}/>)}</div></div><p className="text-xs text-muted-foreground">Sélectionnez au moins deux personnes. Un échange sera créé pour chacune.</p></fieldset>
+    <div className="grid grid-cols-2 gap-3"><FormField label="Type"><NativeSelect name="type" defaultValue="meeting"><option value="meeting">Rencontre</option><option value="call">Appel</option><option value="message">Message</option><option value="email">E-mail</option></NativeSelect></FormField><FormField label="Date"><TextField type="date" name="happenedAt" defaultValue={new Date().toISOString().slice(0,10)}/></FormField></div>
+    <FormField label="Note" hint="Cette note sera ajoutée à l’historique de chaque personne."><MentionTextarea people={contacts} name="note" rows={3} placeholder="Déjeuner, sortie, réunion…"/></FormField>
+    <SubmitButton>Enregistrer l’événement</SubmitButton>
   </ModalForm>;
 }
 
