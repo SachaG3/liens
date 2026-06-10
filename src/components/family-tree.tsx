@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeTypes, type ReactFlowInstance } from "@xyflow/react";
 import { ChevronDown, ChevronRight, Crosshair, UserRound } from "lucide-react";
 import "@xyflow/react/dist/style.css";
+import dagre from "dagre";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -85,50 +86,47 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     if(kinship)kinships.set(person.id,kinship);
   }
 
+  // Créer les nœuds initiaux sans position
   const nodes:Node[]=[{id:"me",type:"family",position:{x:0,y:0},data:{label:user.name,relationship:"Vous",photo:user.photo,side:"both",isUser:true} satisfies FamilyData}];
-  const rows=new Map<number,Array<{person:FamilyPerson;kinship:Kinship}>>();
-  for(const [id,kinship] of kinships){const person=personMap.get(id);if(person)rows.set(kinship.generation,[...(rows.get(kinship.generation)??[]),{person,kinship}])}
 
-  for(const [generation,members] of [...rows].sort(([a],[b])=>a-b)) {
-    const paternal=members.filter(item=>item.kinship.side==="paternal").sort(familySort);
-    const both=members.filter(item=>item.kinship.side==="both").sort(familySort);
-    const maternal=members.filter(item=>item.kinship.side==="maternal").sort(familySort);
-    const positions=new Map<string,number>();
-    placeSide(paternal,-1,positions);
-    placeShared(both,paternal.length,maternal.length,positions);
-    placeSide(maternal,1,positions);
-    for(const {person,kinship} of members)nodes.push({id:person.id,type:"family",position:{x:positions.get(person.id)??0,y:generation*190},data:{label:fullName(person),relationship:`${kinship.label}${person.followUpStatus==="deceased"?" · Décédé":""}`,photo:person.photo,side:kinship.side} satisfies FamilyData});
+  for(const [id,kinship] of kinships){
+    const person=personMap.get(id);
+    if(person)nodes.push({id:person.id,type:"family",position:{x:0,y:0},data:{label:fullName(person),relationship:`${kinship.label}${person.followUpStatus==="deceased"?" · Décédé":""}`,photo:person.photo,side:kinship.side} satisfies FamilyData});
   }
 
-  const included=new Set(kinships.keys());
-  const personNodes=new Map(nodes.map(node=>[node.id,node]));
-  if(user.fatherId&&personNodes.has(user.fatherId))personNodes.get(user.fatherId)!.position.x=-180;
-  if(user.motherId&&personNodes.has(user.motherId))personNodes.get(user.motherId)!.position.x=180;
+  // Créer les edges pour Dagre
   const edges:Edge[]=[];
   const edgeStyle={stroke:"#94a3b8",strokeWidth:1.75};
-  const connectFamily=(childId:string,motherId:string|null,fatherId:string|null)=>{
-    const child=personNodes.get(childId);
-    const mother=motherId&&personNodes.get(motherId);
-    const father=fatherId&&personNodes.get(fatherId);
-    if(!child)return;
-    if(mother&&father){
-      const junctionId=`junction-${childId}`;
-      nodes.push({id:junctionId,type:"junction",position:{x:(mother.position.x+father.position.x+216)/2-4,y:child.position.y-72},data:{side:(child.data as FamilyData).side},selectable:false,draggable:false,zIndex:2});
-      edges.push(
-        {id:`${mother.id}-${junctionId}`,source:mother.id,target:junctionId,type:"smoothstep",style:edgeStyle},
-        {id:`${father.id}-${junctionId}`,source:father.id,target:junctionId,type:"smoothstep",style:edgeStyle},
-        {id:`${junctionId}-${childId}`,source:junctionId,target:childId,type:"straight",style:edgeStyle},
-      );
-      return;
-    }
-    const parent=mother??father;
-    // Ligne DROITE verticale pour parent unique (pas de ligne horizontale confuse)
-    if(parent)edges.push({id:`${parent.id}-${childId}-incomplete`,source:parent.id,target:childId,type:"straight",style:{...edgeStyle,strokeDasharray:"5 5"}});
-  };
-  connectFamily("me",user.motherId,user.fatherId);
-  for(const id of included){const person=personMap.get(id);if(person)connectFamily(id,person.motherId,person.fatherId)}
-  addOrientationNodes(nodes,rows);
-  return {nodes,edges,configured:!!(user.motherId||user.fatherId)};
+
+  // Ajouter les edges parent-enfant
+  if(user.motherId&&kinships.has(user.motherId))edges.push({id:`${user.motherId}-me`,source:user.motherId,target:"me",type:"straight",style:edgeStyle});
+  if(user.fatherId&&kinships.has(user.fatherId))edges.push({id:`${user.fatherId}-me`,source:user.fatherId,target:"me",type:"straight",style:edgeStyle});
+
+  for(const person of people){
+    if(!kinships.has(person.id))continue;
+    if(person.motherId&&kinships.has(person.motherId))edges.push({id:`${person.motherId}-${person.id}`,source:person.motherId,target:person.id,type:"straight",style:{...edgeStyle,strokeDasharray:person.fatherId&&!kinships.has(person.fatherId)?"5 5":undefined}});
+    if(person.fatherId&&kinships.has(person.fatherId))edges.push({id:`${person.fatherId}-${person.id}`,source:person.fatherId,target:person.id,type:"straight",style:{...edgeStyle,strokeDasharray:person.motherId&&!kinships.has(person.motherId)?"5 5":undefined}});
+  }
+
+  // Utiliser Dagre pour le positionnement
+  const g=new dagre.graphlib.Graph();
+  g.setGraph({rankdir:"TB",nodesep:100,ranksep:180,align:"UL"});
+  g.setDefaultEdgeLabel(()=>({}));
+
+  // Ajouter les nœuds à Dagre
+  nodes.forEach(node=>{g.setNode(node.id,{width:260,height:80})});
+  edges.forEach(edge=>{g.setEdge(edge.source,edge.target)});
+
+  // Calculer le layout
+  dagre.layout(g);
+
+  // Récupérer les positions calculées
+  const positionedNodes=nodes.map(node=>{
+    const dagreNode=g.node(node.id);
+    return {...node,position:{x:dagreNode.x-130,y:dagreNode.y-40}};
+  });
+
+  return {nodes:positionedNodes,edges,configured:!!(user.motherId||user.fatherId)};
 }
 
 function addOrientationNodes(nodes:Node[],rows:Map<number,Array<{person:FamilyPerson;kinship:Kinship}>>) {
