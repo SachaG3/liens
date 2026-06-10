@@ -401,21 +401,43 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
         return peopleFindId(personMap,person=>person.spouseId===id);
     };
 
-    for(const [,row] of [...rows.entries()].sort(([leftY],[rightY])=>rightY-leftY)){
+    const placed=new Set<string>();
+    const childrenByParent=new Map<string,Node[]>();
+    for(const node of nodesById.values()){
+        const person=personMap.get(node.id);
+        for(const parentId of [person?.motherId,person?.fatherId])if(parentId)childrenByParent.set(parentId,[...(childrenByParent.get(parentId)??[]),node]);
+    }
+    const childCenter=(members:Node[])=>{
+        const children=[...new Set(members.flatMap(node=>(childrenByParent.get(node.id)??[]).filter(child=>placed.has(child.id))))];
+        return children.length?averageX(children):null;
+    };
+    const parentCenter=(members:Node[])=>{
+        const parents=members.flatMap(node=>{
+            const person=personMap.get(node.id);
+            return [person?.motherId,person?.fatherId].flatMap(id=>id&&placed.has(id)?[nodesById.get(id)!]:[]);
+        });
+        return parents.length?averageX(parents):null;
+    };
+
+    // Traiter les rangées par distance à la génération 0 :
+    // les enfants d'un ancêtre sont déjà placés quand on place l'ancêtre,
+    // et les parents d'un descendant sont déjà placés quand on place le descendant.
+    for(const [y,row] of [...rows.entries()].sort(([a],[b])=>Math.abs(a)-Math.abs(b)||a-b)){
         const remaining=new Set(row.map(node=>node.id));
         const groups:Array<{nodes:Node[];center:number}>=[];
 
-        // Couples stay together before sibling groups are considered.
+        // Les couples restent ensemble
         for(const node of row){
             if(!remaining.has(node.id))continue;
             const spouseId=spouseOf(node.id);
             const spouse=spouseId&&nodesById.get(spouseId);
             if(!spouse||spouse.position.y!==node.position.y||!remaining.has(spouse.id))continue;
             const pair=orderCoupleByParents(node,spouse,nodesById,personMap);
-            groups.push({nodes:pair,center:descendantCenter(pair,nodesById,personMap)??averageX(pair)});
+            groups.push({nodes:pair,center:0});
             remaining.delete(node.id);remaining.delete(spouse.id);
         }
 
+        // Puis les fratries
         const siblings=new Map<string,Node[]>();
         for(const node of row){
             if(!remaining.has(node.id))continue;
@@ -424,24 +446,39 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
             const key=parentIds.length?parentIds.join("|"):`single-${node.id}`;
             siblings.set(key,[...(siblings.get(key)??[]),node]);
         }
-        for(const members of siblings.values()){
-            const ordered=members.sort((left,right)=>left.position.x-right.position.x);
-            groups.push({nodes:ordered,center:descendantCenter(ordered,nodesById,personMap)??averageX(ordered)});
-        }
+        for(const members of siblings.values())groups.push({nodes:members.sort((a,b)=>a.position.x-b.position.x),center:0});
 
-        groups.sort((left,right)=>left.center-right.center);
-        let cursor=Number.NEGATIVE_INFINITY;
+        // Centre souhaité : ancêtres → au-dessus des enfants, descendants → sous les parents
         for(const group of groups){
-            const desiredStart=group.center-(group.nodes.length-1)*HALF_STEP;
-            const start=Math.max(desiredStart,cursor);
-            group.nodes.forEach((node,index)=>{node.position.x=start+index*NODE_STEP});
-            cursor=start+group.nodes.length*NODE_STEP+GROUP_GAP;
+            const fromChildren=childCenter(group.nodes);
+            const fromParents=parentCenter(group.nodes);
+            group.center=(y<0?(fromChildren??fromParents):(fromParents??fromChildren))??averageX(group.nodes);
+        }
+        groups.sort((a,b)=>a.center-b.center);
+
+        // Fusion de blocs : les groupes qui se chevauchent fusionnent et le bloc
+        // se recentre sur la moyenne pondérée des positions souhaitées,
+        // au lieu de tout pousser vers la droite.
+        type Block={start:number;width:number;weight:number;groups:Array<{nodes:Node[];center:number}>};
+        const blocks:Block[]=[];
+        for(const group of groups){
+            let block:Block={start:group.center-(group.nodes.length-1)*HALF_STEP,width:group.nodes.length*NODE_STEP+GROUP_GAP,weight:group.nodes.length,groups:[group]};
+            while(blocks.length&&blocks[blocks.length-1].start+blocks[blocks.length-1].width>block.start){
+                const prev=blocks.pop()!;
+                const start=(prev.start*prev.weight+(block.start-prev.width)*block.weight)/(prev.weight+block.weight);
+                block={start,width:prev.width+block.width,weight:prev.weight+block.weight,groups:[...prev.groups,...block.groups]};
+            }
+            blocks.push(block);
+        }
+        for(const block of blocks){
+            let x=block.start;
+            for(const group of block.groups){
+                group.nodes.forEach((node,index)=>{node.position.x=x+index*NODE_STEP});
+                x+=group.nodes.length*NODE_STEP+GROUP_GAP;
+            }
         }
 
-        const before=groups.flatMap(group=>group.nodes).reduce((sum,node)=>sum+node.position.x,0);
-        const desired=groups.reduce((sum,group)=>sum+group.center*group.nodes.length,0);
-        const shift=(desired-before)/Math.max(1,row.length);
-        for(const node of row)node.position.x+=shift;
+        for(const node of row)placed.add(node.id);
     }
 }
 
@@ -499,6 +536,7 @@ function orderCoupleByParents(first:Node,second:Node,nodesById:Map<string,Node>,
     return [first,second].sort((left,right)=>left.position.x-right.position.x);
 }
 function independentParentEdge(parent:Node,child:Node,style:React.CSSProperties,suffix:string):Edge {
+    if(Math.abs(parent.position.x-child.position.x)<8)return {id:`${parent.id}-${child.id}-${suffix}`,source:parent.id,target:child.id,type:"straight",style};
     const parentIsLeft=parent.position.x<child.position.x;
     return {id:`${parent.id}-${child.id}-${suffix}`,source:parent.id,target:child.id,targetHandle:parentIsLeft?"parent-left":"parent-right",type:"independentParent",data:{laneOffset:42+stableLane(`${parent.id}-${child.id}`)*12},style};
 }
