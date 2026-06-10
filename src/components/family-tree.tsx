@@ -344,44 +344,56 @@ function orderGroupSpouses(group: Array<{person:FamilyPerson;kinship:Kinship}>) 
 }
 
 function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:-1|1,positions:Map<string,number>,personMap:Map<string,FamilyPerson>,existingNodes:Node[]) {
-  // Grouper par parent direct pour les collatéraux et les ancêtres qui ont des parents
+  // 1. Première passe : trouver les parents pour les ancêtres directs
+  const ancestorParents = new Map<string, string>(); // branch -> parentId
+  for (const item of items) {
+    if (item.kinship.label.match(/^(Mère|Père|.*grand-)/)) {
+      const parentId = item.person.motherId || item.person.fatherId;
+      if (parentId) {
+        ancestorParents.set(item.kinship.branch, parentId);
+      }
+    }
+  }
+
+  // 2. Seconde passe : grouper tout le monde par parent (ou par ancre)
   const grouped=new Map<string,typeof items>();
   for(const item of items){
     let parentKey=item.person.motherId||item.person.fatherId;
     
-    // Si pas de parents directs, vérifier si le conjoint a des parents
+    // Si pas de parent direct
     if(!parentKey){
-      let partnerId=item.person.spouseId;
-      if(!partnerId){
-        const partner=items.find(it=>it.person.spouseId===item.person.id);
-        if(partner)partnerId=partner.person.id;
+      // 1. Est-ce un ancêtre direct de cette branche ?
+      const isDirectAncestor=item.kinship.label.match(/^(Mère|Père|.*grand-)/);
+      if(isDirectAncestor && ancestorParents.has(item.kinship.branch)){
+        parentKey = ancestorParents.get(item.kinship.branch)!;
       }
-      if(partnerId){
-        const partnerPerson=personMap.get(partnerId);
-        if(partnerPerson){
-          parentKey=partnerPerson.motherId||partnerPerson.fatherId;
+      // 2. Est-ce un conjoint ?
+      else {
+        let partnerId=item.person.spouseId;
+        if(!partnerId){
+          const partner=items.find(it=>it.person.spouseId===item.person.id);
+          if(partner)partnerId=partner.person.id;
+        }
+        if(partnerId){
+          const partnerPerson=personMap.get(partnerId);
+          if(partnerPerson){
+            parentKey=partnerPerson.motherId||partnerPerson.fatherId||`orphan-${partnerId}`;
+          }
         }
       }
     }
-
-    const isDirectAncestor=item.kinship.label.match(/^(Mère|Père|.*grand-)/);
-
-    if(parentKey){
-      // Si on a un parent (direct ou via le conjoint), on groupe sous ce parent
-      grouped.set(`parent-${parentKey}`,[...(grouped.get(`parent-${parentKey}`)??[]),item]);
-    }else if(isDirectAncestor){
-      // Ancêtres directs sans parents : grouper par branche
-      grouped.set(item.kinship.branch,[...(grouped.get(item.kinship.branch)??[]),item]);
-    }else{
-      // Collatéraux sans parents (orphelins) : grouper sous un orphelin-key lié au couple s'il existe
-      let partnerId=item.person.spouseId;
-      if(!partnerId){
-        const partner=items.find(it=>it.person.spouseId===item.person.id);
-        if(partner)partnerId=partner.person.id;
+    
+    if(!parentKey){
+      // Pour les ancêtres directs restants sans aucun parent dans la branche
+      const isDirectAncestor=item.kinship.label.match(/^(Mère|Père|.*grand-)/);
+      if(isDirectAncestor){
+        parentKey=`ancestor-${item.kinship.branch}`;
+      } else {
+        parentKey=`orphan-${item.person.id}`;
       }
-      const orphanKey = partnerId ? `orphan-${[item.person.id, partnerId].sort().join("-")}` : `orphan-${item.person.id}`;
-      grouped.set(`parent-${orphanKey}`,[...(grouped.get(`parent-${orphanKey}`)??[]),item]);
     }
+    
+    grouped.set(`parent-${parentKey}`,[...(grouped.get(`parent-${parentKey}`)??[]),item]);
   }
 
   // Créer une map des positions des parents existants
@@ -417,13 +429,6 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
         const childCount=orderedGroup.length;
         const totalWidth=(childCount-1)*280;
         let childCursor=parentX-totalWidth/2;
-        if(direction===1){
-          const minX=(parentId==="me")?0:180;
-          if(childCursor<minX)childCursor=minX;
-        }else{
-          const maxX=-180;
-          if(childCursor+totalWidth>maxX)childCursor=maxX-totalWidth;
-        }
         for(const item of orderedGroup){
           positions.set(item.person.id,childCursor);
           childCursor+=280;
