@@ -9,7 +9,7 @@ import { ProfileAvatar } from "@/components/profile-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type FamilyPerson={id:string;firstName:string;lastName:string;photo:string;gender:string;motherId:string|null;fatherId:string|null;followUpStatus?:string};
+export type FamilyPerson={id:string;firstName:string;lastName:string;photo:string;gender:string;motherId:string|null;fatherId:string|null;spouseId:string|null;followUpStatus?:string};
 type Side="maternal"|"paternal"|"both";
 type ParentRole="mother"|"father";
 type AncestorMeta={side:Side;depth:number;role:ParentRole};
@@ -38,7 +38,7 @@ function JunctionNode() {
 
 const nodeTypes:NodeTypes={family:FamilyNode,zone:FamilyZone,generation:GenerationMarker,junction:JunctionNode};
 
-export function FamilyTree({user,people}:{user:{name:string;photo:string;motherId:string|null;fatherId:string|null};people:FamilyPerson[]}) {
+export function FamilyTree({user,people}:{user:{name:string;photo:string;motherId:string|null;fatherId:string|null;spouseId:string|null};people:FamilyPerson[]}) {
   const router=useRouter();
   const [flow,setFlow]=useState<ReactFlowInstance<Node,Edge>|null>(null);
   const [hidden,setHidden]=useState<Set<"maternal"|"paternal">>(new Set());
@@ -69,7 +69,7 @@ export function FamilyTree({user,people}:{user:{name:string;photo:string;motherI
   return <div><div className="mb-4 flex flex-wrap items-center gap-2"><BranchToggle side="paternal" hidden={hidden.has("paternal")} onClick={()=>toggle("paternal")}/><BranchToggle side="maternal" hidden={hidden.has("maternal")} onClick={()=>toggle("maternal")}/><Button type="button" variant={debugMode?"default":"outline"} size="sm" onClick={()=>setDebugMode(!debugMode)} className="ml-auto">🔍 Debug</Button><span className="ml-2 hidden text-xs text-muted-foreground sm:block">Ancêtres en haut · Vous en bas</span></div><div className="relationship-flow relative h-[calc(100vh-280px)] min-h-[680px] overflow-hidden rounded-xl border bg-card shadow-xs"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{padding:.14,minZoom:.18,maxZoom:.9}} minZoom={.1} maxZoom={2} onInit={setFlow} onNodeClick={onNodeClick} nodesConnectable={false} nodesDraggable={false} proOptions={{hideAttribution:true}}><Background color="var(--border)" gap={24} size={1}/><Controls/></ReactFlow><Button type="button" variant="outline" className="absolute right-3 top-3 z-10 bg-card/90 shadow-sm backdrop-blur" onClick={centerMe}><Crosshair/>Recentrer sur moi</Button></div><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span>Les lignes pleines indiquent un lien parental renseigné.</span><span className="border-b border-dashed border-muted-foreground">Les lignes pointillées indiquent une branche parentale incomplète.</span><span>Cliquez sur une personne pour ouvrir sa fiche.</span></div></div>;
 }
 
-function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:string|null},people:FamilyPerson[]) {
+function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:string|null;spouseId:string|null},people:FamilyPerson[]) {
   const personMap=new Map(people.map(person=>[person.id,person]));
   const ancestors=egoAncestors(user,personMap);
   const kinships=new Map<string,Kinship>();
@@ -167,8 +167,26 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
   };
   connectFamily("me",user.motherId,user.fatherId);
   for(const id of included){const person=personMap.get(id);if(person)connectFamily(id,person.motherId,person.fatherId)}
+
+  // Ajouter les liens de couple (spouse) comme des arêtes horizontales
+  const spouseEdgeStyle={stroke:"#e879a0",strokeWidth:2.5,strokeDasharray:"6 4"};
+  const addSpouseEdge=(personAId:string,personBId:string)=>{
+    const nodeA=personNodes.get(personAId),nodeB=personNodes.get(personBId);
+    if(!nodeA||!nodeB)return;
+    // Éviter les doublons
+    const edgeId=[personAId,personBId].sort().join("-spouse-");
+    if(edges.some(e=>e.id===edgeId))return;
+    edges.push({id:edgeId,source:personAId,target:personBId,type:"straight",style:spouseEdgeStyle,label:"❤",labelStyle:{fontSize:14}});
+  };
+  // Lien de couple de l'utilisateur
+  if(user.spouseId)addSpouseEdge("me",user.spouseId);
+  // Liens de couple entre contacts
+  for(const person of people){
+    if(person.spouseId&&personNodes.has(person.id)&&personNodes.has(person.spouseId))addSpouseEdge(person.id,person.spouseId);
+  }
+
   addOrientationNodes(nodes,rows);
-  return {nodes,edges,configured:!!(user.motherId||user.fatherId)};
+  return {nodes,edges,configured:!!(user.motherId||user.fatherId||user.spouseId)};
 }
 
 function addOrientationNodes(nodes:Node[],rows:Map<number,Array<{person:FamilyPerson;kinship:Kinship}>>) {

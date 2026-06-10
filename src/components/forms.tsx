@@ -28,8 +28,8 @@ export function EditCircleForm({circle}:{circle:{id:string;name:string;color:str
   </ModalForm>;
 }
 
-export function AccountForm({user,people}:{user:{name:string;email:string;photo:string;motherId:string|null;fatherId:string|null};people:MentionPerson[]}) {
-  return <ModalForm action={updateAccount} resetOnSuccess={false} refreshOnSuccess successMessage="Profil enregistré." className="grid gap-4"><PhotoEditor key={user.photo||"empty"} existingPhoto={user.photo}/><FormField label="Nom"><TextField name="name" required defaultValue={user.name}/></FormField><FormField label="E-mail"><TextField type="email" name="email" required defaultValue={user.email}/></FormField><ParentFields people={people} motherId={user.motherId} fatherId={user.fatherId} forUser/><SubmitButton>Enregistrer le profil</SubmitButton></ModalForm>;
+export function AccountForm({user,people}:{user:{name:string;email:string;photo:string;motherId:string|null;fatherId:string|null;spouseId:string|null};people:MentionPerson[]}) {
+  return <ModalForm action={updateAccount} resetOnSuccess={false} refreshOnSuccess successMessage="Profil enregistré." className="grid gap-4"><PhotoEditor key={user.photo||"empty"} existingPhoto={user.photo}/><FormField label="Nom"><TextField name="name" required defaultValue={user.name}/></FormField><FormField label="E-mail"><TextField type="email" name="email" required defaultValue={user.email}/></FormField><ParentFields people={people} motherId={user.motherId} fatherId={user.fatherId} spouseId={user.spouseId} forUser/><SubmitButton>Enregistrer le profil</SubmitButton></ModalForm>;
 }
 
 export function PasswordForm() {
@@ -46,7 +46,7 @@ export function ContactForm({ circles, people = [] }: { circles:Array<{id:string
 }
 
 export function EditContactForm({ contact, circles, people }: {
-  contact:{id:string;firstName:string;lastName:string;photo:string;email:string;phone:string;company:string;relationType:string;relationTags:Array<{tag:string}>;notes:string;desiredFrequency:number;birthday:Date|null;nameDayReference:string;circles:Array<{circleId:string}>;gender:string;motherId:string|null;fatherId:string|null;followUpStatus:string;statusNote:string;deceasedAt:Date|null};
+  contact:{id:string;firstName:string;lastName:string;photo:string;email:string;phone:string;company:string;relationType:string;relationTags:Array<{tag:string}>;notes:string;desiredFrequency:number;birthday:Date|null;nameDayReference:string;circles:Array<{circleId:string}>;gender:string;motherId:string|null;fatherId:string|null;spouseId:string|null;followUpStatus:string;statusNote:string;deceasedAt:Date|null};
   circles:Array<{id:string;name:string;color:string}>;
   people:MentionPerson[];
 }) {
@@ -54,7 +54,7 @@ export function EditContactForm({ contact, circles, people }: {
   const otherPeople=people.filter(person=>person.id!==contact.id);
   return <ModalForm action={updateContact} noValidate><input type="hidden" name="id" value={contact.id}/><FormSteps submitLabel="Enregistrer" steps={[
     {label:"Identité",description:"Photo, identité et coordonnées.",content:<><PhotoEditor existingPhoto={contact.photo}/><div className="grid grid-cols-2 gap-3"><FormField label="Prénom"><TextField name="firstName" required defaultValue={contact.firstName}/></FormField><FormField label="Nom"><TextField name="lastName" defaultValue={contact.lastName}/></FormField></div><div className="grid grid-cols-2 gap-3"><FormField label="E-mail"><TextField type="email" name="email" defaultValue={contact.email}/></FormField><FormField label="Téléphone"><TextField name="phone" defaultValue={contact.phone}/></FormField></div><FormField label="Entreprise"><TextField name="company" defaultValue={contact.company}/></FormField><FormField label="Anniversaire"><TextField type="date" name="birthday" defaultValue={contact.birthday?.toISOString().slice(0,10)}/></FormField><NameDayReferenceField value={contact.nameDayReference}/></>},
-    {label:"Relations",description:"Séparez son lien avec vous de ses liens avec les autres personnes.",content:<><RelationTagField selected={contact.relationTags.map(item=>item.tag).concat(contact.relationType?[contact.relationType]:[])}/><ParentFields people={otherPeople} motherId={contact.motherId} fatherId={contact.fatherId}/><FamilyGenderField selected={contact.gender}/><CircleFields circles={circles} memberships={memberships}/></>},
+    {label:"Relations",description:"Séparez son lien avec vous de ses liens avec les autres personnes.",content:<><RelationTagField selected={contact.relationTags.map(item=>item.tag).concat(contact.relationType?[contact.relationType]:[])}/><ParentFields people={otherPeople} motherId={contact.motherId} fatherId={contact.fatherId} spouseId={contact.spouseId}/><FamilyGenderField selected={contact.gender}/><CircleFields circles={circles} memberships={memberships}/></>},
     {label:"Suivi",description:"Rythme et statut permanent de la relation.",content:<><FormField label="Rythme souhaité"><TextField type="number" name="frequency" defaultValue={contact.desiredFrequency} min="1"/></FormField><FollowUpFields status={contact.followUpStatus} note={contact.statusNote} deceasedAt={contact.deceasedAt}/></>},
     {label:"Notes",description:"Informations privées et liens avec d’autres personnes.",content:<FormField label="Notes privées" hint="Tapez @ pour mentionner et relier une personne."><MentionTextarea people={otherPeople} name="notes" rows={8} defaultValue={contact.notes}/></FormField>},
   ]}/></ModalForm>;

@@ -16,6 +16,8 @@ model User {
   mother       Contact?      @relation("UserMother", fields: [motherId], references: [id], onDelete: SetNull)
   fatherId     String?
   father       Contact?      @relation("UserFather", fields: [fatherId], references: [id], onDelete: SetNull)
+  spouseId     String?
+  spouse       Contact?      @relation("UserSpouse", fields: [spouseId], references: [id], onDelete: SetNull)
   passwordHash String
   sessions     Session[]
   contacts     Contact[]     @relation("OwnedContacts")
@@ -60,10 +62,14 @@ model Contact {
   mother           Contact?        @relation("Mother", fields: [motherId], references: [id], onDelete: SetNull)
   fatherId         String?
   father           Contact?        @relation("Father", fields: [fatherId], references: [id], onDelete: SetNull)
+  spouseId         String?
+  spouse           Contact?        @relation("Spouse", fields: [spouseId], references: [id], onDelete: SetNull)
   childrenAsMother Contact[]       @relation("Mother")
   childrenAsFather Contact[]       @relation("Father")
+  spouses          Contact[]       @relation("Spouse")
   usersAsMother    User[]          @relation("UserMother")
   usersAsFather    User[]          @relation("UserFather")
+  usersAsSpouse    User[]          @relation("UserSpouse")
   circles          CircleMember[]
   interactions     Interaction[]
   reminders        Reminder[]
