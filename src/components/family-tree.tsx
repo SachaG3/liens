@@ -2,20 +2,12 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeTypes, type ReactFlowInstance, type EdgeProps, getBezierPath } from "@xyflow/react";
+import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeTypes, type ReactFlowInstance } from "@xyflow/react";
 import { ChevronDown, ChevronRight, Crosshair, UserRound } from "lucide-react";
 import "@xyflow/react/dist/style.css";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-// Edge personnalisé pour connexion verticale pure
-function VerticalEdge({id,sourceX,sourceY,targetX,targetY,style,markerEnd}:EdgeProps){
-  // Ligne verticale pure : X du parent, du bas du parent jusqu'au haut de l'enfant
-  const x = sourceX + 128; // Centre horizontal du parent (256/2)
-  const path=`M ${x} ${sourceY + 80} L ${x} ${targetY}`;
-  return <path id={id} d={path} style={style} markerEnd={markerEnd} fill="none"/>;
-}
 
 export type FamilyPerson={id:string;firstName:string;lastName:string;photo:string;gender:string;motherId:string|null;fatherId:string|null;followUpStatus?:string};
 type Side="maternal"|"paternal"|"both";
@@ -45,7 +37,6 @@ function JunctionNode() {
 }
 
 const nodeTypes:NodeTypes={family:FamilyNode,zone:FamilyZone,generation:GenerationMarker,junction:JunctionNode};
-const edgeTypes={vertical:VerticalEdge};
 
 export function FamilyTree({user,people}:{user:{name:string;photo:string;motherId:string|null;fatherId:string|null};people:FamilyPerson[]}) {
   const router=useRouter();
@@ -75,7 +66,7 @@ export function FamilyTree({user,people}:{user:{name:string;photo:string;motherI
   const toggle=(side:"maternal"|"paternal")=>setHidden(current=>{const next=new Set(current);if(next.has(side))next.delete(side);else next.add(side);return next});
   const centerMe=()=>flow?.fitView({nodes:[{id:"me"}],padding:2,maxZoom:1,duration:window.matchMedia("(prefers-reduced-motion: reduce)").matches?0:260});
   if(!tree.configured)return <div className="grid min-h-[560px] place-items-center rounded-xl border border-dashed bg-muted/20 p-8 text-center"><div><p className="font-semibold">Commencez par définir vos parents</p><p className="mt-2 max-w-md text-sm text-muted-foreground">Dans Mon compte, sélectionnez votre mère et/ou votre père. Ajoutez ensuite les parents sur leurs fiches pour faire apparaître les différentes branches de la famille.</p></div></div>;
-  return <div><div className="mb-4 flex flex-wrap items-center gap-2"><BranchToggle side="paternal" hidden={hidden.has("paternal")} onClick={()=>toggle("paternal")}/><BranchToggle side="maternal" hidden={hidden.has("maternal")} onClick={()=>toggle("maternal")}/><Button type="button" variant={debugMode?"default":"outline"} size="sm" onClick={()=>setDebugMode(!debugMode)} className="ml-auto">🔍 Debug</Button><span className="hidden text-xs text-muted-foreground sm:block">Ancêtres en haut · Vous en bas</span></div><div className="relationship-flow relative h-[calc(100vh-280px)] min-h-[680px] overflow-hidden rounded-xl border bg-card shadow-xs"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} fitView fitViewOptions={{padding:.14,minZoom:.18,maxZoom:.9}} minZoom={.1} maxZoom={2} onInit={setFlow} onNodeClick={onNodeClick} nodesConnectable={false} nodesDraggable={false} proOptions={{hideAttribution:true}}><Background color="var(--border)" gap={24} size={1}/><Controls/></ReactFlow><Button type="button" variant="outline" className="absolute right-3 top-3 z-10 bg-card/90 shadow-sm backdrop-blur" onClick={centerMe}><Crosshair/>Recentrer sur moi</Button></div><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span>Les lignes pleines indiquent un lien parental renseigné.</span><span className="border-b border-dashed border-muted-foreground">Les lignes pointillées indiquent une branche parentale incomplète.</span><span>Cliquez sur une personne pour ouvrir sa fiche.</span></div></div>;
+  return <div><div className="mb-4 flex flex-wrap items-center gap-2"><BranchToggle side="paternal" hidden={hidden.has("paternal")} onClick={()=>toggle("paternal")}/><BranchToggle side="maternal" hidden={hidden.has("maternal")} onClick={()=>toggle("maternal")}/><Button type="button" variant={debugMode?"default":"outline"} size="sm" onClick={()=>setDebugMode(!debugMode)} className="ml-auto">🔍 Debug</Button><span className="ml-2 hidden text-xs text-muted-foreground sm:block">Ancêtres en haut · Vous en bas</span></div><div className="relationship-flow relative h-[calc(100vh-280px)] min-h-[680px] overflow-hidden rounded-xl border bg-card shadow-xs"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{padding:.14,minZoom:.18,maxZoom:.9}} minZoom={.1} maxZoom={2} onInit={setFlow} onNodeClick={onNodeClick} nodesConnectable={false} nodesDraggable={false} proOptions={{hideAttribution:true}}><Background color="var(--border)" gap={24} size={1}/><Controls/></ReactFlow><Button type="button" variant="outline" className="absolute right-3 top-3 z-10 bg-card/90 shadow-sm backdrop-blur" onClick={centerMe}><Crosshair/>Recentrer sur moi</Button></div><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span>Les lignes pleines indiquent un lien parental renseigné.</span><span className="border-b border-dashed border-muted-foreground">Les lignes pointillées indiquent une branche parentale incomplète.</span><span>Cliquez sur une personne pour ouvrir sa fiche.</span></div></div>;
 }
 
 function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:string|null},people:FamilyPerson[]) {
@@ -103,9 +94,9 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     const both=members.filter(item=>item.kinship.side==="both").sort(familySort);
     const maternal=members.filter(item=>item.kinship.side==="maternal").sort(familySort);
     const positions=new Map<string,number>();
-    placeSide(paternal,-1,positions);
+    placeSide(paternal,-1,positions,personMap,nodes);
     placeShared(both,paternal.length,maternal.length,positions);
-    placeSide(maternal,1,positions);
+    placeSide(maternal,1,positions,personMap,nodes);
     for(const {person,kinship} of members)nodes.push({id:person.id,type:"family",position:{x:positions.get(person.id)??0,y:generation*190},data:{label:fullName(person),relationship:`${kinship.label}${person.followUpStatus==="deceased"?" · Décédé":""}`,photo:person.photo,side:kinship.side} satisfies FamilyData});
   }
 
@@ -124,15 +115,14 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
       const junctionId=`junction-${childId}`;
       nodes.push({id:junctionId,type:"junction",position:{x:(mother.position.x+father.position.x+216)/2-4,y:child.position.y-72},data:{side:(child.data as FamilyData).side},selectable:false,draggable:false,zIndex:2});
       edges.push(
-        {id:`${mother.id}-${junctionId}`,source:mother.id,target:junctionId,type:"smoothstep",style:edgeStyle},
-        {id:`${father.id}-${junctionId}`,source:father.id,target:junctionId,type:"smoothstep",style:edgeStyle},
-        {id:`${junctionId}-${childId}`,source:junctionId,target:childId,type:"straight",style:edgeStyle},
+        {id:`${mother.id}-${junctionId}`,source:mother.id,target:junctionId,type:"step",style:edgeStyle},
+        {id:`${father.id}-${junctionId}`,source:father.id,target:junctionId,type:"step",style:edgeStyle},
+        {id:`${junctionId}-${childId}`,source:junctionId,target:childId,type:"step",style:edgeStyle},
       );
       return;
     }
     const parent=mother??father;
-    // Ligne verticale PURE pour parent unique (edge personnalisé)
-    if(parent)edges.push({id:`${parent.id}-${childId}-incomplete`,source:parent.id,target:childId,type:"vertical",style:{...edgeStyle,strokeDasharray:"5 5"}});
+    if(parent)edges.push({id:`${parent.id}-${childId}-incomplete`,source:parent.id,target:childId,type:"step",style:{...edgeStyle,strokeDasharray:"5 5"}});
   };
   connectFamily("me",user.motherId,user.fatherId);
   for(const id of included){const person=personMap.get(id);if(person)connectFamily(id,person.motherId,person.fatherId)}
@@ -221,7 +211,7 @@ function collateralLabel(gender:string,egoDepth:number,personDepth:number,shared
     const degree=Math.min(egoDepth,personDepth)-1;
     const removed=Math.abs(egoDepth-personDepth);
     const base=degree===1?gendered(gender,"Cousine","Cousin","Cousin·e"):`${gendered(gender,"Cousine","Cousin","Cousin·e")} au ${degree}e degré`;
-    return `${base}${removed?` avec ${removed} génération${removed>1?"s":""} d'écart`:""}${kinSideSuffix(side,gender)}`;
+    return `${base}${removed?` avec ${removed} génération${removed>1?"s":""} d’écart`:""}${kinSideSuffix(side,gender)}`;
   }
   return `Famille${sidePhrase(side)}`;
 }
@@ -232,39 +222,76 @@ function ancestorLabel(meta:AncestorMeta) {
   return `${prefix}${meta.role==="mother"?"grand-mère":"grand-père"}${sideSuffix(meta.side,meta.role==="mother")}`;
 }
 
-function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:-1|1,positions:Map<string,number>) {
+function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:-1|1,positions:Map<string,number>,personMap:Map<string,FamilyPerson>,existingNodes:Node[]) {
+  // Grouper par parent direct pour les collatéraux (cousins, neveux, etc.)
+  // et par branche pour les ancêtres directs
   const grouped=new Map<string,typeof items>();
-  // Grouper par branche ET parent direct
   for(const item of items){
-    const parentId=item.person.motherId||item.person.fatherId||"orphan";
-    const groupKey=`${item.kinship.branch}-${parentId}`;
-    grouped.set(groupKey,[...(grouped.get(groupKey)??[]),item]);
+    // Déterminer si c'est un ancêtre direct (label contient "grand-", "Mère", "Père")
+    const isDirectAncestor=item.kinship.label.match(/^(Mère|Père|.*grand-)/);
+
+    if(isDirectAncestor){
+      // Ancêtres directs : grouper par branche comme avant
+      grouped.set(item.kinship.branch,[...(grouped.get(item.kinship.branch)??[]),item]);
+    }else{
+      // Collatéraux (cousins, oncles, tantes, frères, sœurs) : grouper par parent direct
+      const parentKey=item.person.motherId||item.person.fatherId||`orphan-${item.person.id}`;
+      grouped.set(`parent-${parentKey}`,[...(grouped.get(`parent-${parentKey}`)??[]),item]);
+    }
   }
+
+  // Créer une map des positions des parents existants
+  const parentPositions=new Map<string,number>();
+  for(const node of existingNodes){
+    if(node.type==="family")parentPositions.set(node.id,node.position.x);
+  }
+
+  // Trier les groupes pour placer d'abord ceux qui ont un parent positionné
+  const groupsArray=[...grouped.entries()].sort((a,b)=>{
+    const aHasParent=a[0].startsWith("parent-")&&parentPositions.has(a[0].replace("parent-",""));
+    const bHasParent=b[0].startsWith("parent-")&&parentPositions.has(b[0].replace("parent-",""));
+    if(aHasParent&&!bHasParent)return -1;
+    if(!aHasParent&&bHasParent)return 1;
+    // Si les deux ont un parent, trier par position X du parent
+    if(aHasParent&&bHasParent){
+      const aParentX=parentPositions.get(a[0].replace("parent-",""))??0;
+      const bParentX=parentPositions.get(b[0].replace("parent-",""))??0;
+      return direction*(aParentX-bParentX);
+    }
+    return 0;
+  });
+
   let cursor=360;
-  for(const group of grouped.values()){
+  for(const [groupKey,group] of groupsArray){
+    // Si c'est un groupe d'enfants avec parent positionné, centrer sous le parent
+    if(groupKey.startsWith("parent-")){
+      const parentId=groupKey.replace("parent-","");
+      const parentX=parentPositions.get(parentId);
+      if(parentX!==undefined){
+        // Placer les enfants centrés sous le parent
+        const childCount=group.length;
+        const totalWidth=(childCount-1)*280;
+        let childCursor=parentX-totalWidth/2;
+        for(const item of group){
+          positions.set(item.person.id,childCursor);
+          childCursor+=280;
+        }
+        continue;
+      }
+    }
+    // Placement par défaut pour les ancêtres ou groupes sans parent
     for(const item of group){
       positions.set(item.person.id,direction*cursor);
       cursor+=280;
     }
-    cursor+=100; // Espace entre les groupes de frères/cousins
+    cursor+=100;
   }
 }
 function placeShared(items:Array<{person:FamilyPerson;kinship:Kinship}>,paternalCount:number,maternalCount:number,positions:Map<string,number>) {
   let left=440+paternalCount*280,right=440+maternalCount*280;
   items.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=280}else{positions.set(item.person.id,right);right+=280}});
 }
-function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){
-  // 1. Trier par branche (ancêtre commun)
-  const branchCmp=a.kinship.branch.localeCompare(b.kinship.branch);
-  if(branchCmp!==0)return branchCmp;
-  // 2. Si même branche, trier par parent direct pour séparer les groupes de frères/cousins
-  const aParent=(a.person.motherId||a.person.fatherId||"");
-  const bParent=(b.person.motherId||b.person.fatherId||"");
-  const parentCmp=aParent.localeCompare(bParent);
-  if(parentCmp!==0)return parentCmp;
-  // 3. Si même parent, trier par rank puis nom
-  return a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr");
-}
+function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){return a.kinship.branch.localeCompare(b.kinship.branch)||a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr")}
 function fullName(person:FamilyPerson){return `${person.firstName} ${person.lastName}`.trim()}
 function gendered(gender:string,woman:string,man:string,unknown:string){return gender==="woman"?woman:gender==="man"?man:unknown}
 function sideSuffix(side:Side,feminine:boolean){return side==="maternal"?` ${feminine?"maternelle":"maternel"}`:side==="paternal"?` ${feminine?"paternelle":"paternel"}`:""}
