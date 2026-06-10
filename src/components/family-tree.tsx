@@ -2,12 +2,19 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeTypes, type ReactFlowInstance } from "@xyflow/react";
+import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeTypes, type ReactFlowInstance, type EdgeProps, getBezierPath } from "@xyflow/react";
 import { ChevronDown, ChevronRight, Crosshair, UserRound } from "lucide-react";
 import "@xyflow/react/dist/style.css";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+// Edge personnalisé pour connexion verticale pure
+function VerticalEdge({id,sourceX,sourceY,targetX,targetY,style,markerEnd}:EdgeProps){
+  // Ligne verticale depuis le centre du parent jusqu'au centre de l'enfant
+  const path=`M ${sourceX + 130} ${sourceY + 80} L ${targetX + 130} ${targetY}`;
+  return <path id={id} d={path} style={style} markerEnd={markerEnd} fill="none"/>;
+}
 
 export type FamilyPerson={id:string;firstName:string;lastName:string;photo:string;gender:string;motherId:string|null;fatherId:string|null;followUpStatus?:string};
 type Side="maternal"|"paternal"|"both";
@@ -37,6 +44,7 @@ function JunctionNode() {
 }
 
 const nodeTypes:NodeTypes={family:FamilyNode,zone:FamilyZone,generation:GenerationMarker,junction:JunctionNode};
+const edgeTypes={vertical:VerticalEdge};
 
 export function FamilyTree({user,people}:{user:{name:string;photo:string;motherId:string|null;fatherId:string|null};people:FamilyPerson[]}) {
   const router=useRouter();
@@ -66,7 +74,7 @@ export function FamilyTree({user,people}:{user:{name:string;photo:string;motherI
   const toggle=(side:"maternal"|"paternal")=>setHidden(current=>{const next=new Set(current);if(next.has(side))next.delete(side);else next.add(side);return next});
   const centerMe=()=>flow?.fitView({nodes:[{id:"me"}],padding:2,maxZoom:1,duration:window.matchMedia("(prefers-reduced-motion: reduce)").matches?0:260});
   if(!tree.configured)return <div className="grid min-h-[560px] place-items-center rounded-xl border border-dashed bg-muted/20 p-8 text-center"><div><p className="font-semibold">Commencez par définir vos parents</p><p className="mt-2 max-w-md text-sm text-muted-foreground">Dans Mon compte, sélectionnez votre mère et/ou votre père. Ajoutez ensuite les parents sur leurs fiches pour faire apparaître les différentes branches de la famille.</p></div></div>;
-  return <div><div className="mb-4 flex flex-wrap items-center gap-2"><BranchToggle side="paternal" hidden={hidden.has("paternal")} onClick={()=>toggle("paternal")}/><BranchToggle side="maternal" hidden={hidden.has("maternal")} onClick={()=>toggle("maternal")}/><Button type="button" variant={debugMode?"default":"outline"} size="sm" onClick={()=>setDebugMode(!debugMode)} className="ml-auto">🔍 Debug</Button><span className="hidden text-xs text-muted-foreground sm:block">Ancêtres en haut · Vous en bas</span></div><div className="relationship-flow relative h-[calc(100vh-280px)] min-h-[680px] overflow-hidden rounded-xl border bg-card shadow-xs"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{padding:.14,minZoom:.18,maxZoom:.9}} minZoom={.1} maxZoom={2} onInit={setFlow} onNodeClick={onNodeClick} nodesConnectable={false} nodesDraggable={false} proOptions={{hideAttribution:true}}><Background color="var(--border)" gap={24} size={1}/><Controls/></ReactFlow><Button type="button" variant="outline" className="absolute right-3 top-3 z-10 bg-card/90 shadow-sm backdrop-blur" onClick={centerMe}><Crosshair/>Recentrer sur moi</Button></div><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span>Les lignes pleines indiquent un lien parental renseigné.</span><span className="border-b border-dashed border-muted-foreground">Les lignes pointillées indiquent une branche parentale incomplète.</span><span>Cliquez sur une personne pour ouvrir sa fiche.</span></div></div>;
+  return <div><div className="mb-4 flex flex-wrap items-center gap-2"><BranchToggle side="paternal" hidden={hidden.has("paternal")} onClick={()=>toggle("paternal")}/><BranchToggle side="maternal" hidden={hidden.has("maternal")} onClick={()=>toggle("maternal")}/><Button type="button" variant={debugMode?"default":"outline"} size="sm" onClick={()=>setDebugMode(!debugMode)} className="ml-auto">🔍 Debug</Button><span className="hidden text-xs text-muted-foreground sm:block">Ancêtres en haut · Vous en bas</span></div><div className="relationship-flow relative h-[calc(100vh-280px)] min-h-[680px] overflow-hidden rounded-xl border bg-card shadow-xs"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} fitView fitViewOptions={{padding:.14,minZoom:.18,maxZoom:.9}} minZoom={.1} maxZoom={2} onInit={setFlow} onNodeClick={onNodeClick} nodesConnectable={false} nodesDraggable={false} proOptions={{hideAttribution:true}}><Background color="var(--border)" gap={24} size={1}/><Controls/></ReactFlow><Button type="button" variant="outline" className="absolute right-3 top-3 z-10 bg-card/90 shadow-sm backdrop-blur" onClick={centerMe}><Crosshair/>Recentrer sur moi</Button></div><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span>Les lignes pleines indiquent un lien parental renseigné.</span><span className="border-b border-dashed border-muted-foreground">Les lignes pointillées indiquent une branche parentale incomplète.</span><span>Cliquez sur une personne pour ouvrir sa fiche.</span></div></div>;
 }
 
 function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:string|null},people:FamilyPerson[]) {
@@ -122,8 +130,8 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
       return;
     }
     const parent=mother??father;
-    // Ligne DROITE verticale pour parent unique (pas de ligne horizontale confuse)
-    if(parent)edges.push({id:`${parent.id}-${childId}-incomplete`,source:parent.id,target:childId,type:"straight",style:{...edgeStyle,strokeDasharray:"5 5"}});
+    // Ligne verticale PURE pour parent unique (edge personnalisé)
+    if(parent)edges.push({id:`${parent.id}-${childId}-incomplete`,source:parent.id,target:childId,type:"vertical",style:{...edgeStyle,strokeDasharray:"5 5"}});
   };
   connectFamily("me",user.motherId,user.fatherId);
   for(const id of included){const person=personMap.get(id);if(person)connectFamily(id,person.motherId,person.fatherId)}
