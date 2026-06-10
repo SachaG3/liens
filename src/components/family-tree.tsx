@@ -85,6 +85,34 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     if(kinship)kinships.set(person.id,kinship);
   }
 
+  // Inclure également les conjoints/partenaires des personnes de l'arbre
+  let addedAny=true;
+  while(addedAny){
+    addedAny=false;
+    for(const person of people){
+      if(kinships.has(person.id))continue;
+      if(user.spouseId===person.id){
+        const label=person.gender==="woman"?"Conjointe":person.gender==="man"?"Conjoint":"Partenaire";
+        kinships.set(person.id,{side:"both",generation:0,label,branch:"spouse-me",rank:1});
+        addedAny=true;
+        continue;
+      }
+      let partnerId:string|null=null;
+      if(person.spouseId&&kinships.has(person.spouseId)){
+        partnerId=person.spouseId;
+      }else{
+        const partner=people.find(p=>p.spouseId===person.id&&kinships.has(p.id));
+        if(partner)partnerId=partner.id;
+      }
+      if(partnerId){
+        const partnerKinship=kinships.get(partnerId)!;
+        const label=person.gender==="woman"?"Conjointe":person.gender==="man"?"Conjoint":"Partenaire";
+        kinships.set(person.id,{side:partnerKinship.side,generation:partnerKinship.generation,label,branch:`${partnerKinship.branch}-spouse`,rank:partnerKinship.rank});
+        addedAny=true;
+      }
+    }
+  }
+
   const nodes:Node[]=[{id:"me",type:"family",position:{x:0,y:0},data:{label:user.name,relationship:"Vous",photo:user.photo,side:"both",isUser:true} satisfies FamilyData}];
   const rows=new Map<number,Array<{person:FamilyPerson;kinship:Kinship}>>();
   for(const [id,kinship] of kinships){const person=personMap.get(id);if(person)rows.set(kinship.generation,[...(rows.get(kinship.generation)??[]),{person,kinship}])}

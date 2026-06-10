@@ -10,8 +10,8 @@ type MapCircle={id:string;name:string;color:string};
 type MapPerson=FamilyPerson&{company:string;relationTags:string[];score:number;followUpStatus:string;circles:MapCircle[]};
 type MapLink={fromContactId:string;toContactId:string;label:string;source:string};
 
-export function MapTabs({user,people,circles,links}:{user:{name:string;photo:string;motherId:string|null;fatherId:string|null};people:MapPerson[];circles:MapCircle[];links:MapLink[]}) {
-  const [active,setActive]=useState<"network"|"family">(()=>user.motherId||user.fatherId?"family":"network");
+export function MapTabs({user,people,circles,links}:{user:{name:string;photo:string;motherId:string|null;fatherId:string|null;spouseId:string|null};people:MapPerson[];circles:MapCircle[];links:MapLink[]}) {
+  const [active,setActive]=useState<"network"|"family">(()=>user.motherId||user.fatherId||user.spouseId?"family":"network");
   return <div><div className="mb-6 grid max-w-md grid-cols-2 rounded-lg border bg-muted/30 p-1"><Tab active={active==="network"} onClick={()=>setActive("network")} icon={<Network/>}>Réseau</Tab><Tab active={active==="family"} onClick={()=>setActive("family")} icon={<UsersRound/>}>Famille</Tab></div>{active==="network"?<RelationshipMap userName={user.name.split(" ")[0]} people={people} circles={circles} links={links}/>:<FamilyTree user={user} people={people}/>}</div>;
 }
 
