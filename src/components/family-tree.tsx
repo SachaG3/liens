@@ -115,14 +115,15 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
       const junctionId=`junction-${childId}`;
       nodes.push({id:junctionId,type:"junction",position:{x:(mother.position.x+father.position.x+216)/2-4,y:child.position.y-72},data:{side:(child.data as FamilyData).side},selectable:false,draggable:false,zIndex:2});
       edges.push(
-        {id:`${mother.id}-${junctionId}`,source:mother.id,target:junctionId,type:"step",style:edgeStyle},
-        {id:`${father.id}-${junctionId}`,source:father.id,target:junctionId,type:"step",style:edgeStyle},
-        {id:`${junctionId}-${childId}`,source:junctionId,target:childId,type:"step",style:edgeStyle},
+        {id:`${mother.id}-${junctionId}`,source:mother.id,target:junctionId,type:"smoothstep",style:edgeStyle},
+        {id:`${father.id}-${junctionId}`,source:father.id,target:junctionId,type:"smoothstep",style:edgeStyle},
+        {id:`${junctionId}-${childId}`,source:junctionId,target:childId,type:"straight",style:edgeStyle},
       );
       return;
     }
     const parent=mother??father;
-    if(parent)edges.push({id:`${parent.id}-${childId}-incomplete`,source:parent.id,target:childId,type:"step",style:{...edgeStyle,strokeDasharray:"5 5"}});
+    // Ligne DROITE verticale pour parent unique (pas de ligne horizontale confuse)
+    if(parent)edges.push({id:`${parent.id}-${childId}-incomplete`,source:parent.id,target:childId,type:"straight",style:{...edgeStyle,strokeDasharray:"5 5"}});
   };
   connectFamily("me",user.motherId,user.fatherId);
   for(const id of included){const person=personMap.get(id);if(person)connectFamily(id,person.motherId,person.fatherId)}
