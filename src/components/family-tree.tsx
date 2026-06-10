@@ -270,62 +270,21 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
   });
 
   let cursor=360;
-  const usedPositions=new Set<number>();
 
   for(const [groupKey,group] of groupsArray){
-    // Si c'est un groupe d'enfants avec parent positionné, centrer sous le parent
+    // Si c'est un groupe d'enfants avec parent positionné
     if(groupKey.startsWith("parent-")){
       const parentId=groupKey.replace("parent-","");
       const parentX=parentPositions.get(parentId);
       if(parentX!==undefined){
-        // Placer les enfants centrés sous le parent
-        const childCount=group.length;
-        const totalWidth=(childCount-1)*280;
-        let childCursor=parentX-totalWidth/2;
-
-        // Vérifier les collisions avec les positions déjà utilisées
-        let needsAdjustment=false;
-        const proposedPositions:number[]=[];
-        for(let i=0;i<childCount;i++){
-          const pos=childCursor+i*280;
-          proposedPositions.push(pos);
-          // Vérifier si cette position est trop proche d'une position existante (moins de 260px)
-          for(const usedPos of usedPositions){
-            if(Math.abs(pos-usedPos)<260){
-              needsAdjustment=true;
-              break;
-            }
-          }
-        }
-
-        if(needsAdjustment){
-          // Décaler le groupe pour éviter la collision
-          // Trouver le premier espace libre
-          let testCursor=direction*cursor;
-          while(true){
-            let collision=false;
-            for(let i=0;i<childCount;i++){
-              const testPos=testCursor+i*280*direction;
-              for(const usedPos of usedPositions){
-                if(Math.abs(testPos-usedPos)<260){
-                  collision=true;
-                  break;
-                }
-              }
-              if(collision)break;
-            }
-            if(!collision)break;
-            testCursor+=280*direction;
-          }
-          childCursor=testCursor;
-          cursor=Math.abs(testCursor)/280+1;
-        }
-
+        // Toujours placer les collatéraux à côté (pas en dessous) pour éviter les superpositions
+        // Car ils partagent la même génération avec leurs frères/sœurs
+        let offset=direction*cursor;
         for(const item of group){
-          positions.set(item.person.id,childCursor);
-          usedPositions.add(childCursor);
-          childCursor+=280;
+          positions.set(item.person.id,offset);
+          offset+=280*direction;
         }
+        cursor+=group.length+1;
         continue;
       }
     }
@@ -333,7 +292,6 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
     for(const item of group){
       const pos=direction*cursor;
       positions.set(item.person.id,pos);
-      usedPositions.add(pos);
       cursor+=280;
     }
     cursor+=100;
