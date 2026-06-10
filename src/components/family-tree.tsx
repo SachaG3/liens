@@ -317,6 +317,32 @@ function ancestorLabel(meta:AncestorMeta) {
   return `${prefix}${meta.role==="mother"?"grand-mère":"grand-père"}${sideSuffix(meta.side,meta.role==="mother")}`;
 }
 
+function orderGroupSpouses(group: Array<{person:FamilyPerson;kinship:Kinship}>) {
+  const isSpouse = (item: {person:FamilyPerson;kinship:Kinship}) => {
+    return item.kinship.branch === "spouse-me" || item.kinship.branch.endsWith("-spouse");
+  };
+  const spouses = group.filter(isSpouse);
+  const primaries = group.filter(item => !isSpouse(item));
+  
+  const result: typeof group = [];
+  for (const primary of primaries) {
+    result.push(primary);
+    const partnerSpouse = spouses.find(s => 
+      s.person.id === primary.person.spouseId || 
+      primary.person.id === s.person.spouseId
+    );
+    if (partnerSpouse) {
+      result.push(partnerSpouse);
+    }
+  }
+  for (const spouse of spouses) {
+    if (!result.includes(spouse)) {
+      result.push(spouse);
+    }
+  }
+  return result;
+}
+
 function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:-1|1,positions:Map<string,number>,personMap:Map<string,FamilyPerson>,existingNodes:Node[]) {
   // Grouper par parent direct pour les collatéraux (cousins, neveux, etc.)
   // et par branche pour les ancêtres directs
@@ -329,8 +355,27 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
       // Ancêtres directs : grouper par branche comme avant
       grouped.set(item.kinship.branch,[...(grouped.get(item.kinship.branch)??[]),item]);
     }else{
-      // Collatéraux (cousins, oncles, tantes, frères, sœurs) : grouper par parent direct
-      const parentKey=item.person.motherId||item.person.fatherId||`orphan-${item.person.id}`;
+      // Collatéraux (cousins, oncles, tantes, frères, sœurs, conjoints) : grouper par parent direct
+      let parentKey=item.person.motherId||item.person.fatherId;
+      
+      // Si c'est un conjoint sans parents renseignés, tenter de le rattacher au parent du partenaire
+      if(!parentKey){
+        let partnerId=item.person.spouseId;
+        if(!partnerId){
+          const partner=items.find(it=>it.person.spouseId===item.person.id);
+          if(partner)partnerId=partner.person.id;
+        }
+        if(partnerId){
+          const partnerPerson=personMap.get(partnerId);
+          if(partnerPerson){
+            parentKey=partnerPerson.motherId||partnerPerson.fatherId||`orphan-${partnerId}`;
+          }
+        }
+      }
+      
+      if(!parentKey){
+        parentKey=`orphan-${item.person.id}`;
+      }
       grouped.set(`parent-${parentKey}`,[...(grouped.get(`parent-${parentKey}`)??[]),item]);
     }
   }
@@ -363,28 +408,38 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
       const parentId=groupKey.replace("parent-","");
       const parentX=parentPositions.get(parentId);
       if(parentX!==undefined){
+        const orderedGroup=orderGroupSpouses(group);
         // Placer les enfants centrés sous le parent
-        const childCount=group.length;
+        const childCount=orderedGroup.length;
         const totalWidth=(childCount-1)*280;
         let childCursor=parentX-totalWidth/2;
-        for(const item of group){
+        for(const item of orderedGroup){
           positions.set(item.person.id,childCursor);
           childCursor+=280;
         }
         continue;
       }
     }
+    const orderedGroup=orderGroupSpouses(group);
     // Placement par défaut pour les ancêtres ou groupes sans parent
-    for(const item of group){
+    for(const item of orderedGroup){
       positions.set(item.person.id,direction*cursor);
       cursor+=280;
     }
     cursor+=100;
   }
 }
+
 function placeShared(items:Array<{person:FamilyPerson;kinship:Kinship}>,paternalCount:number,maternalCount:number,positions:Map<string,number>) {
+  const spouse=items.find(item=>item.kinship.branch==="spouse-me");
+  const otherItems=items.filter(item=>item.kinship.branch!=="spouse-me");
+
+  if(spouse){
+    positions.set(spouse.person.id,180);
+  }
+
   let left=440+paternalCount*280,right=440+maternalCount*280;
-  items.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=280}else{positions.set(item.person.id,right);right+=280}});
+  otherItems.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=280}else{positions.set(item.person.id,right);right+=280}});
 }
 function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){return a.kinship.branch.localeCompare(b.kinship.branch)||a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr")}
 function fullName(person:FamilyPerson){return `${person.firstName} ${person.lastName}`.trim()}
