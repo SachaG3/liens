@@ -144,6 +144,7 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     if(user.motherId&&personNodes.has(user.motherId))personNodes.get(user.motherId)!.position.x=180;
 
     arrangeGenerationGroups(nodes,personMap,user.spouseId);
+    centerTreeOnMe(nodes);
 
     const edges:Edge[]=[];
     const familyJunctions=new Map<string,{id:string;node:Node;children:string[]}>();
@@ -219,10 +220,15 @@ function addOrientationNodes(nodes:Node[],rows:Map<number,Array<{person:FamilyPe
     const maxY=Math.max(...people.map(node=>node.position.y))+160;
     const paternal=people.filter(node=>(node.data as FamilyData).side==="paternal");
     const maternal=people.filter(node=>(node.data as FamilyData).side==="maternal");
+    const paternalMax=Math.max(...paternal.map(node=>node.position.x+224),0);
+    const maternalMin=Math.min(...maternal.map(node=>node.position.x),0);
+    const boundary=(paternalMax+maternalMin)/2;
     const zone=(side:"paternal"|"maternal",items:Node[])=>{
         if(!items.length)return;
-        const minX=Math.min(...items.map(node=>node.position.x))-65;
-        const maxX=Math.max(...items.map(node=>node.position.x))+289;
+        const itemMinX=Math.min(...items.map(node=>node.position.x))-65;
+        const itemMaxX=Math.max(...items.map(node=>node.position.x))+289;
+        const minX=side==="maternal"?boundary:itemMinX;
+        const maxX=side==="paternal"?boundary:itemMaxX;
         nodes.unshift({id:`zone-${side}`,type:"zone",position:{x:minX,y:minY},data:{side,label:side==="paternal"?"Branche paternelle":"Branche maternelle"} satisfies ZoneData,style:{width:maxX-minX,height:maxY-minY},selectable:false,draggable:false,zIndex:-2});
     };
     zone("paternal",paternal);zone("maternal",maternal);
@@ -439,6 +445,12 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
     }
 }
 
+function centerTreeOnMe(nodes:Node[]) {
+    const me=nodes.find(node=>node.id==="me");
+    if(!me)return;
+    const shift=me.position.x;
+    for(const node of nodes)node.position.x-=shift;
+}
 function descendantCenter(group:Node[],nodesById:Map<string,Node>,personMap:Map<string,FamilyPerson>) {
     const ids=new Set(group.map(node=>node.id));
     const children=[...nodesById.values()].filter(node=>{
