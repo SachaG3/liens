@@ -388,7 +388,7 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
             const spouseId=spouseOf(node.id);
             const spouse=spouseId&&nodesById.get(spouseId);
             if(!spouse||spouse.position.y!==node.position.y||!remaining.has(spouse.id))continue;
-            const pair=[node,spouse].sort((left,right)=>left.position.x-right.position.x);
+            const pair=orderCoupleByParents(node,spouse,nodesById,personMap);
             groups.push({nodes:pair,center:averageX(pair)});
             remaining.delete(node.id);remaining.delete(spouse.id);
         }
@@ -424,6 +424,17 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
 
 function explicitSpouses(leftId:string,rightId:string,personMap:Map<string,FamilyPerson>){
     return personMap.get(leftId)?.spouseId===rightId||personMap.get(rightId)?.spouseId===leftId;
+}
+function orderCoupleByParents(first:Node,second:Node,nodesById:Map<string,Node>,personMap:Map<string,FamilyPerson>) {
+    const parentCenter=(node:Node)=>{
+        const person=personMap.get(node.id);
+        const parents=[person?.motherId,person?.fatherId].flatMap(id=>id&&nodesById.has(id)?[nodesById.get(id)!]:[]);
+        return parents.length?averageX(parents):null;
+    };
+    const firstParentX=parentCenter(first);
+    const secondParentX=parentCenter(second);
+    if(firstParentX!==null&&secondParentX!==null&&firstParentX!==secondParentX)return firstParentX<secondParentX?[first,second]:[second,first];
+    return [first,second].sort((left,right)=>left.position.x-right.position.x);
 }
 function independentParentEdge(parent:Node,child:Node,style:React.CSSProperties,suffix:string):Edge {
     const parentIsLeft=parent.position.x<child.position.x;
