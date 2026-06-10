@@ -19,6 +19,9 @@ type ZoneData={label:string;side:"maternal"|"paternal"};
 type GenerationData={label:string};
 
 const sideStyles:Record<Side,string>={maternal:"border-rose-400 bg-rose-50 dark:bg-rose-950/40",paternal:"border-sky-400 bg-sky-50 dark:bg-sky-950/40",both:"border-violet-400 bg-violet-50 dark:bg-violet-950/40"};
+const NODE_STEP=340;
+const HALF_STEP=NODE_STEP/2;
+const GROUP_GAP=130;
 
 function FamilyNode({data}:{data:FamilyData}) {
     return <><Handle type="target" position={Position.Top} className="opacity-0"/><Handle id="parent-left" type="target" position={Position.Top} style={{left:"32%"}} className="opacity-0"/><Handle id="parent-right" type="target" position={Position.Top} style={{left:"68%"}} className="opacity-0"/><Handle id="left" type="target" position={Position.Left} className="opacity-0"/><div title={`${data.label} · ${data.relationship}`} className={cn("flex min-h-20 w-56 items-center gap-3 rounded-xl border-2 p-3 shadow-sm transition-[box-shadow,border-color] duration-150 hover:shadow-md",data.isUser?"border-foreground bg-foreground text-background shadow-lg ring-4 ring-foreground/10":sideStyles[data.side])}><ProfileAvatar photo={data.photo} name={data.label} className={`size-10 shrink-0 ${data.isUser?"ring-2 ring-background/30":""}`}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{data.label}</p><p className={`mt-0.5 text-[11px] leading-snug ${data.isUser?"text-background/70":"text-muted-foreground"}`}>{data.relationship}</p></div>{data.isUser&&<span className="ml-auto grid size-7 shrink-0 place-items-center rounded-full bg-background/15"><UserRound className="size-3.5"/></span>}</div><Handle type="source" position={Position.Bottom} className="opacity-0"/><Handle id="right" type="source" position={Position.Right} className="opacity-0"/></>;
@@ -358,11 +361,11 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
             if(parentX!==undefined){
                 // Placer les enfants centrés sous le parent
                 const childCount=group.length;
-                const totalWidth=(childCount-1)*280;
+                const totalWidth=(childCount-1)*NODE_STEP;
                 let childCursor=parentX-totalWidth/2;
                 for(const item of group){
                     positions.set(item.person.id,childCursor);
-                    childCursor+=280;
+                    childCursor+=NODE_STEP;
                 }
                 continue;
             }
@@ -370,14 +373,14 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
         // Placement par défaut pour les ancêtres ou groupes sans parent
         for(const item of group){
             positions.set(item.person.id,direction*cursor);
-            cursor+=280;
+            cursor+=NODE_STEP;
         }
-        cursor+=100;
+        cursor+=GROUP_GAP;
     }
 }
 function placeShared(items:Array<{person:FamilyPerson;kinship:Kinship}>,paternalCount:number,maternalCount:number,positions:Map<string,number>) {
-    let left=440+paternalCount*280,right=440+maternalCount*280;
-    items.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=280}else{positions.set(item.person.id,right);right+=280}});
+    let left=440+paternalCount*NODE_STEP,right=440+maternalCount*NODE_STEP;
+    items.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=NODE_STEP}else{positions.set(item.person.id,right);right+=NODE_STEP}});
 }
 
 function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>,userSpouseId:string|null) {
@@ -423,10 +426,10 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
         groups.sort((left,right)=>left.center-right.center);
         let cursor=Number.NEGATIVE_INFINITY;
         for(const group of groups){
-            const desiredStart=group.center-(group.nodes.length-1)*140;
+            const desiredStart=group.center-(group.nodes.length-1)*HALF_STEP;
             const start=Math.max(desiredStart,cursor);
-            group.nodes.forEach((node,index)=>{node.position.x=start+index*280});
-            cursor=start+group.nodes.length*280+80;
+            group.nodes.forEach((node,index)=>{node.position.x=start+index*NODE_STEP});
+            cursor=start+group.nodes.length*NODE_STEP+GROUP_GAP;
         }
 
         const before=groups.flatMap(group=>group.nodes).reduce((sum,node)=>sum+node.position.x,0);
@@ -437,6 +440,21 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
 }
 
 function orderCoupleByParents(first:Node,second:Node,nodesById:Map<string,Node>,personMap:Map<string,FamilyPerson>) {
+    const parentKey=(node:Node)=>{
+        const person=personMap.get(node.id);
+        return person?[person.motherId,person.fatherId].filter((id):id is string=>!!id).sort().join("|"):"";
+    };
+    const siblingCenter=(node:Node)=>{
+        const key=parentKey(node);
+        if(!key)return null;
+        const siblings=[...nodesById.values()].filter(candidate=>candidate.id!==first.id&&candidate.id!==second.id&&candidate.position.y===node.position.y&&parentKey(candidate)===key);
+        return siblings.length?averageX(siblings):null;
+    };
+    const firstSiblingsX=siblingCenter(first);
+    const secondSiblingsX=siblingCenter(second);
+    if(firstSiblingsX!==null&&secondSiblingsX===null)return firstSiblingsX<(first.position.x+second.position.x)/2?[first,second]:[second,first];
+    if(secondSiblingsX!==null&&firstSiblingsX===null)return secondSiblingsX<(first.position.x+second.position.x)/2?[second,first]:[first,second];
+    if(firstSiblingsX!==null&&secondSiblingsX!==null&&firstSiblingsX!==secondSiblingsX)return firstSiblingsX<secondSiblingsX?[first,second]:[second,first];
     const parentCenter=(node:Node)=>{
         const person=personMap.get(node.id);
         const parents=[person?.motherId,person?.fatherId].flatMap(id=>id&&nodesById.has(id)?[nodesById.get(id)!]:[]);
