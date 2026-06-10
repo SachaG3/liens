@@ -21,7 +21,7 @@ type GenerationData={label:string};
 const sideStyles:Record<Side,string>={maternal:"border-rose-400 bg-rose-50 dark:bg-rose-950/40",paternal:"border-sky-400 bg-sky-50 dark:bg-sky-950/40",both:"border-violet-400 bg-violet-50 dark:bg-violet-950/40"};
 
 function FamilyNode({data}:{data:FamilyData}) {
-  return <><Handle type="target" position={Position.Top} className="opacity-0"/><div title={`${data.label} · ${data.relationship}`} className={cn("flex min-h-20 w-56 items-center gap-3 rounded-xl border-2 p-3 shadow-sm transition-[box-shadow,border-color] duration-150 hover:shadow-md",data.isUser?"border-foreground bg-foreground text-background shadow-lg ring-4 ring-foreground/10":sideStyles[data.side])}><ProfileAvatar photo={data.photo} name={data.label} className={`size-10 shrink-0 ${data.isUser?"ring-2 ring-background/30":""}`}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{data.label}</p><p className={`mt-0.5 text-[11px] leading-snug ${data.isUser?"text-background/70":"text-muted-foreground"}`}>{data.relationship}</p></div>{data.isUser&&<span className="ml-auto grid size-7 shrink-0 place-items-center rounded-full bg-background/15"><UserRound className="size-3.5"/></span>}</div><Handle type="source" position={Position.Bottom} className="opacity-0"/></>;
+  return <><Handle type="target" position={Position.Top} className="opacity-0"/><Handle type="source" position={Position.Right} id="right" className="top-1/2 opacity-0"/><div title={`${data.label} · ${data.relationship}`} className={cn("flex min-h-20 w-56 items-center gap-3 rounded-xl border-2 p-3 shadow-sm transition-[box-shadow,border-color] duration-150 hover:shadow-md",data.isUser?"border-foreground bg-foreground text-background shadow-lg ring-4 ring-foreground/10":sideStyles[data.side])}><ProfileAvatar photo={data.photo} name={data.label} className={`size-10 shrink-0 ${data.isUser?"ring-2 ring-background/30":""}`}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{data.label}</p><p className={`mt-0.5 text-[11px] leading-snug ${data.isUser?"text-background/70":"text-muted-foreground"}`}>{data.relationship}</p></div>{data.isUser&&<span className="ml-auto grid size-7 shrink-0 place-items-center rounded-full bg-background/15"><UserRound className="size-3.5"/></span>}</div><Handle type="source" position={Position.Bottom} className="opacity-0"/><Handle type="target" position={Position.Left} id="left" className="top-1/2 opacity-0"/></>;
 }
 
 function FamilyZone({data}:{data:ZoneData}) {
@@ -204,7 +204,7 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     // Éviter les doublons
     const edgeId=[personAId,personBId].sort().join("-spouse-");
     if(edges.some(e=>e.id===edgeId))return;
-    edges.push({id:edgeId,source:personAId,target:personBId,type:"straight",style:spouseEdgeStyle,label:"❤",labelStyle:{fontSize:14}});
+    edges.push({id:edgeId,source:personAId,target:personBId,sourceHandle:"right",targetHandle:"left",type:"straight",style:spouseEdgeStyle,label:"❤",labelStyle:{fontSize:14}});
   };
   // Lien de couple de l'utilisateur
   if(user.spouseId)addSpouseEdge("me",user.spouseId);
@@ -438,11 +438,15 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
     }
     const orderedGroup=orderGroupSpouses(group);
     // Placement par défaut pour les ancêtres ou groupes sans parent
-    for(const item of orderedGroup){
-      positions.set(item.person.id,direction*cursor);
-      cursor+=280;
+    const totalWidth=(orderedGroup.length-1)*280;
+    if(direction===-1){
+      let childCursor=-cursor-totalWidth;
+      for(const item of orderedGroup){positions.set(item.person.id,childCursor);childCursor+=280}
+    }else{
+      let childCursor=cursor;
+      for(const item of orderedGroup){positions.set(item.person.id,childCursor);childCursor+=280}
     }
-    cursor+=100;
+    cursor+=orderedGroup.length*280+100;
   }
 }
 
@@ -457,7 +461,24 @@ function placeShared(items:Array<{person:FamilyPerson;kinship:Kinship}>,paternal
   let left=440+paternalCount*280,right=440+maternalCount*280;
   otherItems.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=280}else{positions.set(item.person.id,right);right+=280}});
 }
-function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){return a.kinship.branch.localeCompare(b.kinship.branch)||a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr")}
+function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){
+  const aIsAncestor = a.kinship.branch.endsWith("-ancestor");
+  const bIsAncestor = b.kinship.branch.endsWith("-ancestor");
+  
+  if (aIsAncestor !== bIsAncestor) {
+    if (a.kinship.side === "paternal") {
+      return aIsAncestor ? 1 : -1;
+    } else {
+      return aIsAncestor ? -1 : 1;
+    }
+  }
+
+  if (aIsAncestor && bIsAncestor && a.person.gender !== b.person.gender) {
+    return a.person.gender === "man" ? -1 : 1;
+  }
+
+  return a.kinship.branch.localeCompare(b.kinship.branch)||a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr");
+}
 function fullName(person:FamilyPerson){return `${person.firstName} ${person.lastName}`.trim()}
 function gendered(gender:string,woman:string,man:string,unknown:string){return gender==="woman"?woman:gender==="man"?man:unknown}
 function sideSuffix(side:Side,feminine:boolean){return side==="maternal"?` ${feminine?"maternelle":"maternel"}`:side==="paternal"?` ${feminine?"paternelle":"paternel"}`:""}
