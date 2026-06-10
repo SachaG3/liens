@@ -186,10 +186,7 @@ function collateralKinship(person:FamilyPerson,ego:Map<string,AncestorMeta>,pers
   const side=mergeSides(nearest.map(item=>item.side));
   const sharedCount=nearest.length;
   const label=collateralLabel(person.gender,closest.egoDepth,closest.personDepth,sharedCount,side);
-  // Pour les cousins (même génération que vous), grouper par parent direct au lieu de l'ancêtre commun
-  const generation=closest.personDepth-closest.egoDepth;
-  const branchId=generation===0?(person.motherId||person.fatherId||closest.id):closest.id;
-  return {side,generation,label,branch:`${side}-${branchId}`,rank:closest.egoDepth+closest.personDepth};
+  return {side,generation:closest.personDepth-closest.egoDepth,label,branch:`${side}-${closest.id}`,rank:closest.egoDepth+closest.personDepth};
 }
 
 function personAncestors(person:FamilyPerson,personMap:Map<string,FamilyPerson>) {
@@ -227,15 +224,37 @@ function ancestorLabel(meta:AncestorMeta) {
 
 function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:-1|1,positions:Map<string,number>) {
   const grouped=new Map<string,typeof items>();
-  for(const item of items)grouped.set(item.kinship.branch,[...(grouped.get(item.kinship.branch)??[]),item]);
+  // Grouper par branche ET parent direct
+  for(const item of items){
+    const parentId=item.person.motherId||item.person.fatherId||"orphan";
+    const groupKey=`${item.kinship.branch}-${parentId}`;
+    grouped.set(groupKey,[...(grouped.get(groupKey)??[]),item]);
+  }
   let cursor=360;
-  for(const group of grouped.values()){for(const item of group){positions.set(item.person.id,direction*cursor);cursor+=280}cursor+=100}
+  for(const group of grouped.values()){
+    for(const item of group){
+      positions.set(item.person.id,direction*cursor);
+      cursor+=280;
+    }
+    cursor+=100; // Espace entre les groupes de frères/cousins
+  }
 }
 function placeShared(items:Array<{person:FamilyPerson;kinship:Kinship}>,paternalCount:number,maternalCount:number,positions:Map<string,number>) {
   let left=440+paternalCount*280,right=440+maternalCount*280;
   items.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=280}else{positions.set(item.person.id,right);right+=280}});
 }
-function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){return a.kinship.branch.localeCompare(b.kinship.branch)||a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr")}
+function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){
+  // 1. Trier par branche (ancêtre commun)
+  const branchCmp=a.kinship.branch.localeCompare(b.kinship.branch);
+  if(branchCmp!==0)return branchCmp;
+  // 2. Si même branche, trier par parent direct pour séparer les groupes de frères/cousins
+  const aParent=(a.person.motherId||a.person.fatherId||"");
+  const bParent=(b.person.motherId||b.person.fatherId||"");
+  const parentCmp=aParent.localeCompare(bParent);
+  if(parentCmp!==0)return parentCmp;
+  // 3. Si même parent, trier par rank puis nom
+  return a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr");
+}
 function fullName(person:FamilyPerson){return `${person.firstName} ${person.lastName}`.trim()}
 function gendered(gender:string,woman:string,man:string,unknown:string){return gender==="woman"?woman:gender==="man"?man:unknown}
 function sideSuffix(side:Side,feminine:boolean){return side==="maternal"?` ${feminine?"maternelle":"maternel"}`:side==="paternal"?` ${feminine?"paternelle":"paternel"}`:""}
