@@ -145,6 +145,7 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
 
     arrangeGenerationGroups(nodes,personMap,user.spouseId);
     centerTreeOnMe(nodes);
+    separateBranchesAroundMe(nodes);
 
     const edges:Edge[]=[];
     const familyJunctions=new Map<string,{id:string;node:Node;children:string[]}>();
@@ -220,9 +221,8 @@ function addOrientationNodes(nodes:Node[],rows:Map<number,Array<{person:FamilyPe
     const maxY=Math.max(...people.map(node=>node.position.y))+160;
     const paternal=people.filter(node=>(node.data as FamilyData).side==="paternal");
     const maternal=people.filter(node=>(node.data as FamilyData).side==="maternal");
-    const paternalMax=Math.max(...paternal.map(node=>node.position.x+224),0);
-    const maternalMin=Math.min(...maternal.map(node=>node.position.x),0);
-    const boundary=(paternalMax+maternalMin)/2;
+    const me=people.find(node=>node.id==="me");
+    const boundary=(me?.position.x??0)+112;
     const zone=(side:"paternal"|"maternal",items:Node[])=>{
         if(!items.length)return;
         const itemMinX=Math.min(...items.map(node=>node.position.x))-65;
@@ -450,6 +450,19 @@ function centerTreeOnMe(nodes:Node[]) {
     if(!me)return;
     const shift=me.position.x;
     for(const node of nodes)node.position.x-=shift;
+}
+function separateBranchesAroundMe(nodes:Node[]) {
+    const me=nodes.find(node=>node.id==="me");
+    if(!me)return;
+    const boundary=me.position.x+112;
+    const gap=48;
+    const familyNodes=nodes.filter(node=>node.type==="family");
+    const paternal=familyNodes.filter(node=>(node.data as FamilyData).side==="paternal");
+    const maternal=familyNodes.filter(node=>(node.data as FamilyData).side==="maternal");
+    const paternalOverflow=Math.max(0,...paternal.map(node=>node.position.x+224-(boundary-gap)));
+    const maternalOverflow=Math.max(0,...maternal.map(node=>boundary+gap-node.position.x));
+    for(const node of paternal)node.position.x-=paternalOverflow;
+    for(const node of maternal)node.position.x+=maternalOverflow;
 }
 function descendantCenter(group:Node[],nodesById:Map<string,Node>,personMap:Map<string,FamilyPerson>) {
     const ids=new Set(group.map(node=>node.id));
