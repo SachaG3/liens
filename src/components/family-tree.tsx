@@ -36,9 +36,8 @@ function JunctionNode() {
     return <><Handle type="target" position={Position.Top} className="opacity-0"/><span className="block size-2 rounded-full border-2 border-card bg-muted-foreground shadow-sm"/><Handle type="source" position={Position.Bottom} className="opacity-0"/></>;
 }
 
-function IndependentParentEdge({id,sourceX,sourceY,targetX,targetY,style,markerEnd}:EdgeProps) {
-    const direction=sourceX<=targetX?-1:1;
-    const laneY=sourceY+52+direction*12;
+function IndependentParentEdge({id,sourceX,sourceY,targetX,targetY,style,markerEnd,data}:EdgeProps) {
+    const laneY=sourceY+Number((data as {laneOffset?:number}|undefined)?.laneOffset??52);
     const path=`M ${sourceX} ${sourceY} V ${laneY} H ${targetX} V ${targetY}`;
     return <BaseEdge id={id} path={path} style={style} markerEnd={markerEnd}/>;
 }
@@ -144,27 +143,29 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     arrangeGenerationGroups(nodes,personMap,user.spouseId);
 
     const edges:Edge[]=[];
+    const familyJunctions=new Map<string,{id:string;node:Node}>();
     const edgeStyle={stroke:"#94a3b8",strokeWidth:1.75};
     const connectFamily=(childId:string,motherId:string|null,fatherId:string|null)=>{
         const child=personNodes.get(childId);
         const mother=motherId&&personNodes.get(motherId);
         const father=fatherId&&personNodes.get(fatherId);
         if(!child)return;
-        if(mother&&father&&explicitSpouses(mother.id,father.id,personMap)){
-            const junctionId=`junction-${childId}`;
-            nodes.push({id:junctionId,type:"junction",position:{x:(mother.position.x+father.position.x+216)/2-4,y:child.position.y-72},data:{side:(child.data as FamilyData).side},selectable:false,draggable:false,zIndex:2});
-            edges.push(
-                {id:`${mother.id}-${junctionId}`,source:mother.id,target:junctionId,type:"step",style:edgeStyle},
-                {id:`${father.id}-${junctionId}`,source:father.id,target:junctionId,type:"step",style:edgeStyle},
-                {id:`${junctionId}-${childId}`,source:junctionId,target:childId,type:"step",style:edgeStyle},
-            );
-            return;
-        }
         if(mother&&father){
-            edges.push(
-                independentParentEdge(mother,child,edgeStyle,"mother"),
-                independentParentEdge(father,child,edgeStyle,"father"),
-            );
+            const parentIds=[mother.id,father.id].sort();
+            const familyKey=parentIds.join("|");
+            let family=familyJunctions.get(familyKey);
+            if(!family){
+                const junctionId=`junction-family-${parentIds.join("-")}`;
+                const junction={id:junctionId,type:"junction",position:{x:(mother.position.x+father.position.x+216)/2-4,y:child.position.y-72},data:{side:(child.data as FamilyData).side},selectable:false,draggable:false,zIndex:2} satisfies Node;
+                family={id:junctionId,node:junction};
+                familyJunctions.set(familyKey,family);
+                nodes.push(junction);
+                edges.push(
+                    {id:`${mother.id}-${junctionId}`,source:mother.id,target:junctionId,type:"step",style:edgeStyle},
+                    {id:`${father.id}-${junctionId}`,source:father.id,target:junctionId,type:"step",style:edgeStyle},
+                );
+            }
+            edges.push({id:`${family.id}-${childId}`,source:family.id,target:childId,type:"independentParent",data:{laneOffset:34+stableLane(`${family.id}-${childId}`)*10},style:edgeStyle});
             return;
         }
         const parent=mother??father;
@@ -422,9 +423,6 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
     }
 }
 
-function explicitSpouses(leftId:string,rightId:string,personMap:Map<string,FamilyPerson>){
-    return personMap.get(leftId)?.spouseId===rightId||personMap.get(rightId)?.spouseId===leftId;
-}
 function orderCoupleByParents(first:Node,second:Node,nodesById:Map<string,Node>,personMap:Map<string,FamilyPerson>) {
     const parentCenter=(node:Node)=>{
         const person=personMap.get(node.id);
@@ -438,8 +436,9 @@ function orderCoupleByParents(first:Node,second:Node,nodesById:Map<string,Node>,
 }
 function independentParentEdge(parent:Node,child:Node,style:React.CSSProperties,suffix:string):Edge {
     const parentIsLeft=parent.position.x<child.position.x;
-    return {id:`${parent.id}-${child.id}-${suffix}`,source:parent.id,target:child.id,targetHandle:parentIsLeft?"parent-left":"parent-right",type:"independentParent",style};
+    return {id:`${parent.id}-${child.id}-${suffix}`,source:parent.id,target:child.id,targetHandle:parentIsLeft?"parent-left":"parent-right",type:"independentParent",data:{laneOffset:42+stableLane(`${parent.id}-${child.id}`)*12},style};
 }
+function stableLane(value:string){return [...value].reduce((total,char)=>total+char.charCodeAt(0),0)%6}
 function averageX(nodes:Node[]){return nodes.reduce((sum,node)=>sum+node.position.x,0)/nodes.length}
 function peopleFindId(personMap:Map<string,FamilyPerson>,predicate:(person:FamilyPerson)=>boolean){for(const person of personMap.values())if(predicate(person))return person.id;return null}
 function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){return a.kinship.branch.localeCompare(b.kinship.branch)||a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr")}
