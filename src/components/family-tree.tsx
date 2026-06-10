@@ -133,45 +133,7 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
     if(user.fatherId&&personNodes.has(user.fatherId))personNodes.get(user.fatherId)!.position.x=-180;
     if(user.motherId&&personNodes.has(user.motherId))personNodes.get(user.motherId)!.position.x=180;
 
-    // Résoudre les collisions de nœuds de type "family" par génération (même Y)
-    const nodesByY = new Map<number, Node[]>();
-    for (const node of nodes) {
-        if (node.type === "family") {
-            const y = node.position.y;
-            if (!nodesByY.has(y)) nodesByY.set(y, []);
-            nodesByY.get(y)!.push(node);
-        }
-    }
-
-    for (const [y, genNodes] of nodesByY) {
-        // Les nœuds à gauche (paternels, x < 0), triés du plus proche de 0 au plus éloigné
-        const leftNodes = genNodes.filter(n => n.position.x < 0).sort((a, b) => b.position.x - a.position.x);
-        const maxLeftX = (y === 0) ? -280 : -180;
-        if (leftNodes.length > 0 && leftNodes[0].position.x > maxLeftX) {
-            leftNodes[0].position.x = maxLeftX;
-        }
-        for (let i = 1; i < leftNodes.length; i++) {
-            const prev = leftNodes[i - 1];
-            const curr = leftNodes[i];
-            if (prev.position.x - curr.position.x < 280) {
-                curr.position.x = prev.position.x - 280;
-            }
-        }
-
-        // Les nœuds à droite (maternels, x >= 0), triés du plus proche de 0 au plus éloigné
-        const rightNodes = genNodes.filter(n => n.position.x >= 0).sort((a, b) => a.position.x - b.position.x);
-        const minRightX = (y === 0) ? 0 : 180;
-        if (rightNodes.length > 0 && rightNodes[0].position.x < minRightX) {
-            rightNodes[0].position.x = minRightX;
-        }
-        for (let i = 1; i < rightNodes.length; i++) {
-            const prev = rightNodes[i - 1];
-            const curr = rightNodes[i];
-            if (curr.position.x - prev.position.x < 280) {
-                curr.position.x = prev.position.x + 280;
-            }
-        }
-    }
+    arrangeGenerationGroups(nodes,personMap,user.spouseId);
 
     const edges:Edge[]=[];
     const edgeStyle={stroke:"#94a3b8",strokeWidth:1.75};
@@ -388,6 +350,65 @@ function placeShared(items:Array<{person:FamilyPerson;kinship:Kinship}>,paternal
     let left=440+paternalCount*280,right=440+maternalCount*280;
     items.forEach((item,index)=>{if(index%2===0){positions.set(item.person.id,-left);left+=280}else{positions.set(item.person.id,right);right+=280}});
 }
+
+function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>,userSpouseId:string|null) {
+    const nodesById=new Map(nodes.filter(node=>node.type==="family").map(node=>[node.id,node]));
+    const rows=new Map<number,Node[]>();
+    for(const node of nodesById.values())rows.set(node.position.y,[...(rows.get(node.position.y)??[]),node]);
+
+    const spouseOf=(id:string)=>{
+        if(id==="me")return userSpouseId;
+        const direct=personMap.get(id)?.spouseId;
+        if(direct)return direct;
+        return peopleFindId(personMap,person=>person.spouseId===id);
+    };
+
+    for(const row of rows.values()){
+        const remaining=new Set(row.map(node=>node.id));
+        const groups:Array<{nodes:Node[];center:number}>=[];
+
+        // Couples stay together before sibling groups are considered.
+        for(const node of row){
+            if(!remaining.has(node.id))continue;
+            const spouseId=spouseOf(node.id);
+            const spouse=spouseId&&nodesById.get(spouseId);
+            if(!spouse||spouse.position.y!==node.position.y||!remaining.has(spouse.id))continue;
+            const pair=[node,spouse].sort((left,right)=>left.position.x-right.position.x);
+            groups.push({nodes:pair,center:averageX(pair)});
+            remaining.delete(node.id);remaining.delete(spouse.id);
+        }
+
+        const siblings=new Map<string,Node[]>();
+        for(const node of row){
+            if(!remaining.has(node.id))continue;
+            const person=personMap.get(node.id);
+            const parentIds=person?[person.motherId,person.fatherId].filter((id):id is string=>!!id).sort():[];
+            const key=parentIds.length?parentIds.join("|"):`single-${node.id}`;
+            siblings.set(key,[...(siblings.get(key)??[]),node]);
+        }
+        for(const members of siblings.values()){
+            const ordered=members.sort((left,right)=>left.position.x-right.position.x);
+            groups.push({nodes:ordered,center:averageX(ordered)});
+        }
+
+        groups.sort((left,right)=>left.center-right.center);
+        let cursor=Number.NEGATIVE_INFINITY;
+        for(const group of groups){
+            const desiredStart=group.center-(group.nodes.length-1)*140;
+            const start=Math.max(desiredStart,cursor);
+            group.nodes.forEach((node,index)=>{node.position.x=start+index*280});
+            cursor=start+group.nodes.length*280+80;
+        }
+
+        const before=groups.flatMap(group=>group.nodes).reduce((sum,node)=>sum+node.position.x,0);
+        const desired=groups.reduce((sum,group)=>sum+group.center*group.nodes.length,0);
+        const shift=(desired-before)/Math.max(1,row.length);
+        for(const node of row)node.position.x+=shift;
+    }
+}
+
+function averageX(nodes:Node[]){return nodes.reduce((sum,node)=>sum+node.position.x,0)/nodes.length}
+function peopleFindId(personMap:Map<string,FamilyPerson>,predicate:(person:FamilyPerson)=>boolean){for(const person of personMap.values())if(predicate(person))return person.id;return null}
 function familySort(a:{person:FamilyPerson;kinship:Kinship},b:{person:FamilyPerson;kinship:Kinship}){return a.kinship.branch.localeCompare(b.kinship.branch)||a.kinship.rank-b.kinship.rank||fullName(a.person).localeCompare(fullName(b.person),"fr")}
 function fullName(person:FamilyPerson){return `${person.firstName} ${person.lastName}`.trim()}
 function gendered(gender:string,woman:string,man:string,unknown:string){return gender==="woman"?woman:gender==="man"?man:unknown}
