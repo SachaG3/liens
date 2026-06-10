@@ -420,7 +420,7 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
         }
         for(const members of siblings.values()){
             const ordered=members.sort((left,right)=>left.position.x-right.position.x);
-            groups.push({nodes:ordered,center:averageX(ordered)});
+            groups.push({nodes:ordered,center:descendantCenter(ordered,nodesById,personMap)??averageX(ordered)});
         }
 
         groups.sort((left,right)=>left.center-right.center);
