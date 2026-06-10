@@ -104,6 +104,47 @@ function buildTree(user:{name:string;photo:string;motherId:string|null;fatherId:
   const personNodes=new Map(nodes.map(node=>[node.id,node]));
   if(user.fatherId&&personNodes.has(user.fatherId))personNodes.get(user.fatherId)!.position.x=-180;
   if(user.motherId&&personNodes.has(user.motherId))personNodes.get(user.motherId)!.position.x=180;
+
+  // Résoudre les collisions de nœuds de type "family" par génération (même Y)
+  const nodesByY = new Map<number, Node[]>();
+  for (const node of nodes) {
+    if (node.type === "family") {
+      const y = node.position.y;
+      if (!nodesByY.has(y)) nodesByY.set(y, []);
+      nodesByY.get(y)!.push(node);
+    }
+  }
+
+  for (const [y, genNodes] of nodesByY) {
+    // Les nœuds à gauche (paternels, x < 0), triés du plus proche de 0 au plus éloigné
+    const leftNodes = genNodes.filter(n => n.position.x < 0).sort((a, b) => b.position.x - a.position.x);
+    const maxLeftX = (y === 0) ? -280 : -180;
+    if (leftNodes.length > 0 && leftNodes[0].position.x > maxLeftX) {
+      leftNodes[0].position.x = maxLeftX;
+    }
+    for (let i = 1; i < leftNodes.length; i++) {
+      const prev = leftNodes[i - 1];
+      const curr = leftNodes[i];
+      if (prev.position.x - curr.position.x < 280) {
+        curr.position.x = prev.position.x - 280;
+      }
+    }
+
+    // Les nœuds à droite (maternels, x >= 0), triés du plus proche de 0 au plus éloigné
+    const rightNodes = genNodes.filter(n => n.position.x >= 0).sort((a, b) => a.position.x - b.position.x);
+    const minRightX = (y === 0) ? 0 : 180;
+    if (rightNodes.length > 0 && rightNodes[0].position.x < minRightX) {
+      rightNodes[0].position.x = minRightX;
+    }
+    for (let i = 1; i < rightNodes.length; i++) {
+      const prev = rightNodes[i - 1];
+      const curr = rightNodes[i];
+      if (curr.position.x - prev.position.x < 280) {
+        curr.position.x = prev.position.x + 280;
+      }
+    }
+  }
+
   const edges:Edge[]=[];
   const edgeStyle={stroke:"#94a3b8",strokeWidth:1.75};
   const connectFamily=(childId:string,motherId:string|null,fatherId:string|null)=>{
@@ -166,6 +207,7 @@ function isHiddenNode(node:Node,hidden:Set<"maternal"|"paternal">) {
 
 function egoAncestors(user:{motherId:string|null;fatherId:string|null},personMap:Map<string,FamilyPerson>) {
   const result=new Map<string,AncestorMeta>();
+  result.set("me", {side:"both",depth:0,role:"father"});
   const visit=(id:string|null,side:Side,depth:number,role:ParentRole,seen=new Set<string>())=>{
     if(!id||seen.has(id)||!personMap.has(id)||depth>5)return;
     const previous=result.get(id);
@@ -192,8 +234,9 @@ function collateralKinship(person:FamilyPerson,ego:Map<string,AncestorMeta>,pers
 function personAncestors(person:FamilyPerson,personMap:Map<string,FamilyPerson>) {
   const result=new Map<string,number>();
   const visit=(id:string|null,depth:number,seen=new Set<string>())=>{
-    if(!id||seen.has(id)||!personMap.has(id)||depth>4)return;
+    if(!id||seen.has(id)||(!personMap.has(id)&&id!=="me")||depth>4)return;
     result.set(id,Math.min(result.get(id)??depth,depth));
+    if(id==="me")return;
     const parent=personMap.get(id)!;const next=new Set(seen).add(id);
     visit(parent.motherId,depth+1,next);visit(parent.fatherId,depth+1,next);
   };
@@ -202,7 +245,13 @@ function personAncestors(person:FamilyPerson,personMap:Map<string,FamilyPerson>)
 }
 
 function collateralLabel(gender:string,egoDepth:number,personDepth:number,sharedCount:number,side:Side) {
+  if(egoDepth===0){
+    if(personDepth===1)return gendered(gender,"Fille","Fils","Enfant");
+    if(personDepth===2)return gendered(gender,"Petite-fille","Petit-fils","Petit-enfant");
+    return "Descendant·e";
+  }
   if(egoDepth===1&&personDepth===1)return sharedCount===1?gendered(gender,"Demi-sœur","Demi-frère","Demi-frère ou demi-sœur"):gendered(gender,"Sœur","Frère","Frère ou sœur");
+  if(egoDepth===1&&personDepth===2)return gendered(gender,"Nièce","Neveu","Neveu ou nièce");
   if(personDepth===1&&egoDepth>=2){
     const prefix=egoDepth===2?"":`${"Arrière-".repeat(Math.max(0,egoDepth-3))}grand-`;
     return `${sharedCount===1?"Demi-":""}${prefix}${gendered(gender,"tante","oncle","oncle ou tante")}${kinSideSuffix(side,gender)}`;
