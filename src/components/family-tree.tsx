@@ -45,12 +45,21 @@ export function FamilyTree({user,people}:{user:{name:string;photo:string;motherI
   const [debugMode,setDebugMode]=useState(false);
   const onNodeClick=useCallback((_:React.MouseEvent,node:Node)=>{if(node.type==="family"&&node.id!=="me")router.push(`/contacts/${node.id}`)},[router]);
   const tree=useMemo(()=>buildTree(user,people),[user,people]);
-  const nodes=tree.nodes.filter(node=>!isHiddenNode(node,hidden)).map(node=>{
+  const nodes=tree.nodes.filter(node=>!isHiddenNode(node,hidden)).map((node,index)=>{
     if(!debugMode||node.type!=="family")return node;
     const data=node.data as FamilyData;
-    const words=data.label.split(" ");
-    const anonymized=words.map((_,i)=>`P${node.id.substring(0,3)}_${i+1}`).join(" ");
-    return {...node,data:{...data,label:anonymized}};
+    const person=people.find(p=>p.id===node.id);
+    const nodeNum=index+1;
+    let anonymized=`Person${nodeNum}`;
+    if(person){
+      const motherNum=people.findIndex(p=>p.id===person.motherId)+1;
+      const fatherNum=people.findIndex(p=>p.id===person.fatherId)+1;
+      const parents=[];
+      if(motherNum>0)parents.push(`M=${motherNum}`);
+      if(fatherNum>0)parents.push(`F=${fatherNum}`);
+      if(parents.length>0)anonymized+=` (${parents.join(", ")})`;
+    }
+    return {...node,data:{...data,label:anonymized,photo:""}};
   });
   const visibleIds=new Set(nodes.map(node=>node.id));
   const edges=tree.edges.filter(edge=>visibleIds.has(edge.source)&&visibleIds.has(edge.target));
