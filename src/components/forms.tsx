@@ -92,11 +92,12 @@ export function InteractionForm({ contacts, people = contacts }: { contacts:Ment
   </ModalForm>;
 }
 
-export function GroupInteractionForm({contacts}:{contacts:MentionPerson[]}) {
+export function GroupInteractionForm({contacts,otherContacts=[]}:{contacts:MentionPerson[];otherContacts?:MentionPerson[]}) {
+  const people=[...contacts,...otherContacts];
   return <ModalForm action={addGroupInteraction} noValidate className="grid gap-4">
-    <fieldset className="grid gap-1.5"><legend className="text-sm font-medium">Personnes présentes</legend><div className="max-h-52 overflow-y-auto rounded-lg border bg-background p-3"><div className="flex flex-wrap gap-2">{contacts.map(contact=><CheckPill key={contact.id} label={`${contact.firstName} ${contact.lastName}`} name="contactIds" value={contact.id}/>)}</div></div><p className="text-xs text-muted-foreground">Sélectionnez au moins deux personnes. Un échange sera créé pour chacune.</p></fieldset>
+    <fieldset className="grid gap-1.5"><legend className="text-sm font-medium">Personnes présentes</legend><div className="max-h-64 space-y-3 overflow-y-auto rounded-lg border bg-background p-3"><div className="flex flex-wrap gap-2">{contacts.map(contact=><CheckPill key={contact.id} label={`${contact.firstName} ${contact.lastName}`} name="contactIds" value={contact.id}/>)}</div>{otherContacts.length>0&&<details><summary className="w-fit cursor-pointer list-none rounded-md border bg-muted/40 px-3 py-2 text-sm font-medium transition hover:bg-muted [&::-webkit-details-marker]:hidden">Voir les autres personnes ({otherContacts.length})</summary><div className="mt-3 flex flex-wrap gap-2">{otherContacts.map(contact=><CheckPill key={contact.id} label={`${contact.firstName} ${contact.lastName}`} name="contactIds" value={contact.id}/>)}</div></details>}</div><p className="text-xs text-muted-foreground">Sélectionnez au moins deux personnes. Un échange sera créé pour chacune.</p></fieldset>
     <div className="grid grid-cols-2 gap-3"><FormField label="Type"><NativeSelect name="type" defaultValue="meeting"><option value="meeting">Rencontre</option><option value="call">Appel</option><option value="message">Message</option><option value="email">E-mail</option></NativeSelect></FormField><FormField label="Date"><TextField type="date" name="happenedAt" defaultValue={new Date().toISOString().slice(0,10)}/></FormField></div>
-    <FormField label="Note" hint="Cette note sera ajoutée à l’historique de chaque personne."><MentionTextarea people={contacts} name="note" rows={3} placeholder="Déjeuner, sortie, réunion…"/></FormField>
+    <FormField label="Note" hint="Cette note sera ajoutée à l’historique de chaque personne."><MentionTextarea people={people} name="note" rows={3} placeholder="Déjeuner, sortie, réunion…"/></FormField>
     <SubmitButton>Enregistrer l’événement</SubmitButton>
   </ModalForm>;
 }
