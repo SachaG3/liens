@@ -417,6 +417,13 @@ function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:
         const childCount=orderedGroup.length;
         const totalWidth=(childCount-1)*280;
         let childCursor=parentX-totalWidth/2;
+        if(direction===1){
+          const minX=(parentId==="me")?0:180;
+          if(childCursor<minX)childCursor=minX;
+        }else{
+          const maxX=-180;
+          if(childCursor+totalWidth>maxX)childCursor=maxX-totalWidth;
+        }
         for(const item of orderedGroup){
           positions.set(item.person.id,childCursor);
           childCursor+=280;
