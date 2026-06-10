@@ -395,7 +395,7 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
         return peopleFindId(personMap,person=>person.spouseId===id);
     };
 
-    for(const row of rows.values()){
+    for(const [,row] of [...rows.entries()].sort(([leftY],[rightY])=>rightY-leftY)){
         const remaining=new Set(row.map(node=>node.id));
         const groups:Array<{nodes:Node[];center:number}>=[];
 
@@ -406,7 +406,7 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
             const spouse=spouseId&&nodesById.get(spouseId);
             if(!spouse||spouse.position.y!==node.position.y||!remaining.has(spouse.id))continue;
             const pair=orderCoupleByParents(node,spouse,nodesById,personMap);
-            groups.push({nodes:pair,center:averageX(pair)});
+            groups.push({nodes:pair,center:descendantCenter(pair,nodesById,personMap)??averageX(pair)});
             remaining.delete(node.id);remaining.delete(spouse.id);
         }
 
@@ -439,6 +439,14 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
     }
 }
 
+function descendantCenter(group:Node[],nodesById:Map<string,Node>,personMap:Map<string,FamilyPerson>) {
+    const ids=new Set(group.map(node=>node.id));
+    const children=[...nodesById.values()].filter(node=>{
+        const person=personMap.get(node.id);
+        return !!person&&(ids.has(person.motherId??"")||ids.has(person.fatherId??""));
+    });
+    return children.length?averageX(children):null;
+}
 function orderCoupleByParents(first:Node,second:Node,nodesById:Map<string,Node>,personMap:Map<string,FamilyPerson>) {
     const parentKey=(node:Node)=>{
         const person=personMap.get(node.id);
