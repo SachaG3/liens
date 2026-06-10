@@ -6,6 +6,7 @@ import { relationTypes } from "@/lib/relation-types";
 import { PhotoEditor } from "@/components/photo-editor";
 import { FormSteps } from "@/components/form-steps";
 import { ParentFields } from "@/components/parent-fields";
+import { nameDayOptions } from "@/lib/important-dates";
 
 type MentionPerson={id:string;firstName:string;lastName:string};
 
@@ -37,7 +38,7 @@ export function PasswordForm() {
 
 export function ContactForm({ circles, people = [] }: { circles:Array<{id:string;name:string;color:string}>;people?:MentionPerson[] }) {
   return <ModalForm action={addContact} noValidate><FormSteps submitLabel="Ajouter la personne" steps={[
-    {label:"Identité",description:"Les informations essentielles et les coordonnées.",content:<><PhotoEditor/><div className="grid grid-cols-2 gap-3"><FormField label="Prénom"><TextField name="firstName" required/></FormField><FormField label="Nom"><TextField name="lastName"/></FormField></div><div className="grid grid-cols-2 gap-3"><FormField label="E-mail"><TextField type="email" name="email"/></FormField><FormField label="Téléphone"><TextField name="phone"/></FormField></div><FormField label="Entreprise"><TextField name="company"/></FormField><FormField label="Anniversaire"><TextField type="date" name="birthday"/></FormField></>},
+    {label:"Identité",description:"Les informations essentielles et les coordonnées.",content:<><PhotoEditor/><div className="grid grid-cols-2 gap-3"><FormField label="Prénom"><TextField name="firstName" required/></FormField><FormField label="Nom"><TextField name="lastName"/></FormField></div><div className="grid grid-cols-2 gap-3"><FormField label="E-mail"><TextField type="email" name="email"/></FormField><FormField label="Téléphone"><TextField name="phone"/></FormField></div><FormField label="Entreprise"><TextField name="company"/></FormField><FormField label="Anniversaire"><TextField type="date" name="birthday"/></FormField><NameDayReferenceField/></>},
     {label:"Relations",description:"Séparez son lien avec vous de ses liens avec les autres personnes.",content:<><RelationTagField/><ParentFields people={people}/><FamilyGenderField/>{circles.length>0&&<CircleFields circles={circles}/>}</>},
     {label:"Suivi",description:"Configurez les suggestions de reconnexion, ou désactivez-les.",content:<><FormField label="Rythme souhaité"><TextField type="number" name="frequency" defaultValue="30" min="1"/></FormField><FollowUpFields/></>},
     {label:"Notes",description:"Ajoutez seulement ce qui sera utile plus tard.",content:<FormField label="Notes privées" hint="Tapez @ pour mentionner et relier une personne."><MentionTextarea people={people} name="notes" rows={8} placeholder="Ex. Rencontré grâce à @Camille…"/></FormField>},
@@ -45,14 +46,14 @@ export function ContactForm({ circles, people = [] }: { circles:Array<{id:string
 }
 
 export function EditContactForm({ contact, circles, people }: {
-  contact:{id:string;firstName:string;lastName:string;photo:string;email:string;phone:string;company:string;relationType:string;relationTags:Array<{tag:string}>;notes:string;desiredFrequency:number;birthday:Date|null;circles:Array<{circleId:string}>;gender:string;motherId:string|null;fatherId:string|null;followUpStatus:string;statusNote:string;deceasedAt:Date|null};
+  contact:{id:string;firstName:string;lastName:string;photo:string;email:string;phone:string;company:string;relationType:string;relationTags:Array<{tag:string}>;notes:string;desiredFrequency:number;birthday:Date|null;nameDayReference:string;circles:Array<{circleId:string}>;gender:string;motherId:string|null;fatherId:string|null;followUpStatus:string;statusNote:string;deceasedAt:Date|null};
   circles:Array<{id:string;name:string;color:string}>;
   people:MentionPerson[];
 }) {
   const memberships=new Set(contact.circles.map(c=>c.circleId));
   const otherPeople=people.filter(person=>person.id!==contact.id);
   return <ModalForm action={updateContact} noValidate><input type="hidden" name="id" value={contact.id}/><FormSteps submitLabel="Enregistrer" steps={[
-    {label:"Identité",description:"Photo, identité et coordonnées.",content:<><PhotoEditor existingPhoto={contact.photo}/><div className="grid grid-cols-2 gap-3"><FormField label="Prénom"><TextField name="firstName" required defaultValue={contact.firstName}/></FormField><FormField label="Nom"><TextField name="lastName" defaultValue={contact.lastName}/></FormField></div><div className="grid grid-cols-2 gap-3"><FormField label="E-mail"><TextField type="email" name="email" defaultValue={contact.email}/></FormField><FormField label="Téléphone"><TextField name="phone" defaultValue={contact.phone}/></FormField></div><FormField label="Entreprise"><TextField name="company" defaultValue={contact.company}/></FormField><FormField label="Anniversaire"><TextField type="date" name="birthday" defaultValue={contact.birthday?.toISOString().slice(0,10)}/></FormField></>},
+    {label:"Identité",description:"Photo, identité et coordonnées.",content:<><PhotoEditor existingPhoto={contact.photo}/><div className="grid grid-cols-2 gap-3"><FormField label="Prénom"><TextField name="firstName" required defaultValue={contact.firstName}/></FormField><FormField label="Nom"><TextField name="lastName" defaultValue={contact.lastName}/></FormField></div><div className="grid grid-cols-2 gap-3"><FormField label="E-mail"><TextField type="email" name="email" defaultValue={contact.email}/></FormField><FormField label="Téléphone"><TextField name="phone" defaultValue={contact.phone}/></FormField></div><FormField label="Entreprise"><TextField name="company" defaultValue={contact.company}/></FormField><FormField label="Anniversaire"><TextField type="date" name="birthday" defaultValue={contact.birthday?.toISOString().slice(0,10)}/></FormField><NameDayReferenceField value={contact.nameDayReference}/></>},
     {label:"Relations",description:"Séparez son lien avec vous de ses liens avec les autres personnes.",content:<><RelationTagField selected={contact.relationTags.map(item=>item.tag).concat(contact.relationType?[contact.relationType]:[])}/><ParentFields people={otherPeople} motherId={contact.motherId} fatherId={contact.fatherId}/><FamilyGenderField selected={contact.gender}/><CircleFields circles={circles} memberships={memberships}/></>},
     {label:"Suivi",description:"Rythme et statut permanent de la relation.",content:<><FormField label="Rythme souhaité"><TextField type="number" name="frequency" defaultValue={contact.desiredFrequency} min="1"/></FormField><FollowUpFields status={contact.followUpStatus} note={contact.statusNote} deceasedAt={contact.deceasedAt}/></>},
     {label:"Notes",description:"Informations privées et liens avec d’autres personnes.",content:<FormField label="Notes privées" hint="Tapez @ pour mentionner et relier une personne."><MentionTextarea people={otherPeople} name="notes" rows={8} defaultValue={contact.notes}/></FormField>},
@@ -63,6 +64,12 @@ function RelationTagPicker({selected=[]}:{selected?:string[]}) {
   const selectedSet=new Set(selected);
   return <div className="max-h-52 space-y-3 overflow-y-auto rounded-lg border bg-background p-3">{relationTypes.map(([group,options])=><fieldset key={group}><legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</legend><div className="flex flex-wrap gap-1.5">{options.map(option=><CheckPill key={option} label={option} name="relationTags" value={option} defaultChecked={selectedSet.has(option)}/>)}</div></fieldset>)}</div>;
 }
+
+function NameDayReferenceField({value=""}:{value?:string}) {
+  return <FormField label="Fête du prénom" hint="Choisissez un prénom de référence seulement si la détection automatique ne convient pas."><NativeSelect name="nameDayReference" defaultValue={value}><option value="">Détection automatique</option>{nameDayOptions.map(option=><option key={option.value} value={option.value}>{option.name} · {formatNameDay(option.date)}</option>)}</NativeSelect></FormField>;
+}
+
+function formatNameDay(value:string){const [month,day]=value.split("-").map(Number);return new Date(2026,month-1,day).toLocaleDateString("fr-FR",{day:"numeric",month:"long"})}
 
 function FollowUpFields({status="active",note="",deceasedAt=null}:{status?:string;note?:string;deceasedAt?:Date|null}) {
   return <fieldset className="grid gap-3 rounded-lg border bg-muted/20 p-3"><legend className="px-1 text-sm font-medium">Suivi de la relation</legend><FormField label="Statut" hint="Les personnes non suivies restent dans votre carnet et votre arbre, sans suggestion de reconnexion."><NativeSelect name="followUpStatus" defaultValue={status}><option value="active">Suivi actif</option><option value="no_contact">Ne pas recontacter</option><option value="deceased">Décédé</option></NativeSelect></FormField><div className="grid gap-3 sm:grid-cols-2"><FormField label="Note sur ce statut"><TextField name="statusNote" defaultValue={note} placeholder="Facultatif et privé"/></FormField><FormField label="Date de décès"><TextField type="date" name="deceasedAt" defaultValue={deceasedAt?.toISOString().slice(0,10)}/></FormField></div></fieldset>;

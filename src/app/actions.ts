@@ -8,6 +8,7 @@ import { clearSession, createSession, requireUser } from "@/lib/auth";
 import { createMentionLinks } from "@/lib/mentions";
 import { relationTypeOptions } from "@/lib/relation-types";
 import { deleteImage, saveImage } from "@/lib/media";
+import { importantDateSuggestions, validNameDayReference } from "@/lib/important-dates";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
@@ -95,6 +96,7 @@ export async function addContact(form: FormData) {
     email: text(form, "email"), phone: text(form, "phone"), company: text(form, "company"),
     notes: text(form, "notes"), photo: await saveImage(form.get("photo")), desiredFrequency: Number(text(form, "frequency")) || 30,
     birthday: text(form, "birthday") ? new Date(text(form, "birthday")) : null,
+    nameDayReference:validNameDayReference(text(form,"nameDayReference")),
     followUpStatus:followUpStatus(text(form,"followUpStatus")),statusNote:text(form,"statusNote"),deceasedAt:text(form,"deceasedAt")?new Date(text(form,"deceasedAt")):null,
     motherId, fatherId, gender:familyGender(text(form,"gender")),
     circles: { create: circles.map(({ id: circleId }) => ({ circleId })) },
@@ -121,12 +123,14 @@ export async function updateContact(form: FormData) {
     email: text(form, "email"), phone: text(form, "phone"), company: text(form, "company"), relationType: "",
     notes: text(form, "notes"), photo: await saveImage(form.get("photo"),contact.photo), desiredFrequency: Number(text(form, "frequency")) || 30,
     birthday: text(form, "birthday") ? new Date(text(form, "birthday")) : null,
+    nameDayReference:validNameDayReference(text(form,"nameDayReference")),
     followUpStatus:followUpStatus(text(form,"followUpStatus")),statusNote:text(form,"statusNote"),deceasedAt:text(form,"deceasedAt")?new Date(text(form,"deceasedAt")):null,
     motherId, fatherId, gender:familyGender(text(form,"gender")),
     circles: { deleteMany: {}, create: circles.map(({ id: circleId }) => ({ circleId })) },
     relationTags: { deleteMany: {}, create: relationTags.map(tag=>({tag})) },
   }});
   await createMentionLinks(user.id, id, text(form, "notes"));
+  await refreshAutomaticNameDay(user.id,id);
   revalidatePath("/");
   revalidatePath("/contacts");
   revalidatePath(`/contacts/${id}`);
@@ -208,6 +212,25 @@ export async function updateImportantDate(form:FormData){
 export async function deleteImportantDate(form:FormData){
   const user=await requireUser();const item=await db.importantDate.findFirst({where:{id:text(form,"id"),contact:{userId:user.id}}});if(!item)return;
   await db.importantDate.delete({where:{id:item.id}});revalidatePath(`/contacts/${item.contactId}`);revalidatePath("/reminders");
+}
+
+export async function addSuggestedImportantDate(form:FormData){
+  const user=await requireUser();const contactId=text(form,"contactId"),sourceKey=text(form,"sourceKey");
+  const contacts=await importantDateContacts(user.id);
+  const suggestion=importantDateSuggestions(user,contacts).find(item=>item.contactId===contactId&&item.sourceKey===sourceKey);
+  if(!suggestion)return;
+  await db.importantDate.upsert({where:{contactId_sourceKey:{contactId,sourceKey}},create:{contactId,source:"automatic",sourceKey,title:suggestion.title,date:suggestion.date,recurring:false,remindDays:suggestion.remindDays},update:{title:suggestion.title,date:suggestion.date,recurring:false,remindDays:suggestion.remindDays}});
+  revalidatePath(`/contacts/${contactId}`);revalidatePath("/reminders");
+}
+
+export async function syncSuggestedImportantDates(form:FormData){
+  const user=await requireUser();const requestedContactId=text(form,"contactId");
+  const contacts=await importantDateContacts(user.id);
+  const allowed=requestedContactId?contacts.some(contact=>contact.id===requestedContactId):true;
+  if(!allowed)return;
+  const suggestions=importantDateSuggestions(user,contacts).filter(item=>!requestedContactId||item.contactId===requestedContactId);
+  for(const item of suggestions)await db.importantDate.upsert({where:{contactId_sourceKey:{contactId:item.contactId,sourceKey:item.sourceKey}},create:{contactId:item.contactId,source:"automatic",sourceKey:item.sourceKey,title:item.title,date:item.date,recurring:false,remindDays:item.remindDays},update:{title:item.title,date:item.date,recurring:false,remindDays:item.remindDays}});
+  revalidatePath("/reminders");revalidatePath("/contacts");if(requestedContactId)revalidatePath(`/contacts/${requestedContactId}`);
 }
 
 export async function addConversationItem(form:FormData){
@@ -420,6 +443,20 @@ function followUpStatus(value:string) {
 
 function normalizedRelationTags(form:FormData) {
   return [...new Set(form.getAll("relationTags").map(String))];
+}
+
+async function importantDateContacts(userId:string){
+  return db.contact.findMany({where:{userId},select:{id:true,firstName:true,nameDayReference:true,gender:true,motherId:true,fatherId:true,followUpStatus:true,relationTags:{select:{tag:true}}}});
+}
+
+async function refreshAutomaticNameDay(userId:string,contactId:string){
+  const existing=await db.importantDate.findUnique({where:{contactId_sourceKey:{contactId,sourceKey:"name-day"}}});
+  if(!existing)return;
+  const contacts=await importantDateContacts(userId);
+  const user=await db.user.findUniqueOrThrow({where:{id:userId}});
+  const suggestion=importantDateSuggestions(user,contacts).find(item=>item.contactId===contactId&&item.sourceKey==="name-day");
+  if(!suggestion){await db.importantDate.delete({where:{id:existing.id}});return}
+  await db.importantDate.update({where:{id:existing.id},data:{title:suggestion.title,date:suggestion.date,remindDays:suggestion.remindDays}});
 }
 
 export async function deleteContact(form: FormData) {

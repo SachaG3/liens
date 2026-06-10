@@ -47,6 +47,7 @@ model Contact {
   relationType     String          @default("")
   relationTags     ContactRelationTag[]
   birthday         DateTime?
+  nameDayReference String          @default("")
   notes            String          @default("")
   desiredFrequency Int             @default(30)
   followUpStatus   String          @default("active")
@@ -176,7 +177,11 @@ model ImportantDate {
   date      DateTime
   recurring Boolean @default(true)
   remindDays Int    @default(7)
+  source    String   @default("manual")
+  sourceKey String?
   createdAt DateTime @default(now())
+
+  @@unique([contactId, sourceKey])
 }
 
 model ConversationItem {

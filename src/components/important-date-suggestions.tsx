@@ -1,0 +1,9 @@
+import { CalendarPlus, Sparkles } from "lucide-react";
+import { addSuggestedImportantDate, syncSuggestedImportantDates } from "@/app/actions";
+import { Button } from "@/components/ui/button";
+import type { ImportantDateSuggestion } from "@/lib/important-dates";
+
+export function ImportantDateSuggestions({suggestions,contactId,compact=false}:{suggestions:ImportantDateSuggestion[];contactId?:string;compact?:boolean}) {
+  if(!suggestions.length)return compact?null:<p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Toutes les suggestions automatiques sont déjà ajoutées.</p>;
+  return <div className="grid gap-3"><form action={syncSuggestedImportantDates} className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 p-3">{contactId&&<input type="hidden" name="contactId" value={contactId}/>}<div><p className="flex items-center gap-2 text-sm font-medium"><Sparkles className="size-4"/>{suggestions.length} suggestion{suggestions.length!==1?"s":""}</p><p className="text-xs text-muted-foreground">Ajout sans doublon, actualisable chaque année.</p></div><Button type="submit" variant="outline">Tout ajouter</Button></form><div className={compact?"space-y-2":"max-h-[55vh] space-y-2 overflow-y-auto pr-1"}>{suggestions.map(item=><div key={`${item.contactId}-${item.sourceKey}`} className="flex items-center gap-3 rounded-lg border p-3"><CalendarPlus className="size-4 shrink-0 text-muted-foreground"/><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.title}</p><p className="truncate text-xs text-muted-foreground">{item.reason} · {item.date.toLocaleDateString("fr-FR",{day:"numeric",month:"long"})}</p></div><form action={addSuggestedImportantDate}><input type="hidden" name="contactId" value={item.contactId}/><input type="hidden" name="sourceKey" value={item.sourceKey}/><Button type="submit" size="sm" variant="outline">Ajouter</Button></form></div>)}</div></div>;
+}
