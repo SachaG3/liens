@@ -11,8 +11,9 @@ import { cn } from "@/lib/utils";
 
 // Edge personnalisé pour connexion verticale pure
 function VerticalEdge({id,sourceX,sourceY,targetX,targetY,style,markerEnd}:EdgeProps){
-  // Ligne verticale depuis le centre du parent jusqu'au centre de l'enfant
-  const path=`M ${sourceX + 130} ${sourceY + 80} L ${targetX + 130} ${targetY}`;
+  // Ligne verticale pure : X du parent, du bas du parent jusqu'au haut de l'enfant
+  const x = sourceX + 128; // Centre horizontal du parent (256/2)
+  const path=`M ${x} ${sourceY + 80} L ${x} ${targetY}`;
   return <path id={id} d={path} style={style} markerEnd={markerEnd} fill="none"/>;
 }
 
