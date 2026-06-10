@@ -65,6 +65,7 @@
 @layer base {
   * { @apply border-border outline-ring/50; }
   body { @apply bg-background text-foreground antialiased; }
+  a, button, input, select, textarea, summary { -webkit-tap-highlight-color: transparent; }
 }
 
 .card { @apply rounded-xl border bg-card text-card-foreground shadow-xs; }
@@ -94,5 +95,13 @@
 @keyframes dashdraw {
   to {
     stroke-dashoffset: -10;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
