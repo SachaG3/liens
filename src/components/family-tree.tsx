@@ -344,39 +344,43 @@ function orderGroupSpouses(group: Array<{person:FamilyPerson;kinship:Kinship}>) 
 }
 
 function placeSide(items:Array<{person:FamilyPerson;kinship:Kinship}>,direction:-1|1,positions:Map<string,number>,personMap:Map<string,FamilyPerson>,existingNodes:Node[]) {
-  // Grouper par parent direct pour les collatéraux (cousins, neveux, etc.)
-  // et par branche pour les ancêtres directs
+  // Grouper par parent direct pour les collatéraux et les ancêtres qui ont des parents
   const grouped=new Map<string,typeof items>();
   for(const item of items){
-    // Déterminer si c'est un ancêtre direct (label contient "grand-", "Mère", "Père")
+    let parentKey=item.person.motherId||item.person.fatherId;
+    
+    // Si pas de parents directs, vérifier si le conjoint a des parents
+    if(!parentKey){
+      let partnerId=item.person.spouseId;
+      if(!partnerId){
+        const partner=items.find(it=>it.person.spouseId===item.person.id);
+        if(partner)partnerId=partner.person.id;
+      }
+      if(partnerId){
+        const partnerPerson=personMap.get(partnerId);
+        if(partnerPerson){
+          parentKey=partnerPerson.motherId||partnerPerson.fatherId;
+        }
+      }
+    }
+
     const isDirectAncestor=item.kinship.label.match(/^(Mère|Père|.*grand-)/);
 
-    if(isDirectAncestor){
-      // Ancêtres directs : grouper par branche comme avant
+    if(parentKey){
+      // Si on a un parent (direct ou via le conjoint), on groupe sous ce parent
+      grouped.set(`parent-${parentKey}`,[...(grouped.get(`parent-${parentKey}`)??[]),item]);
+    }else if(isDirectAncestor){
+      // Ancêtres directs sans parents : grouper par branche
       grouped.set(item.kinship.branch,[...(grouped.get(item.kinship.branch)??[]),item]);
     }else{
-      // Collatéraux (cousins, oncles, tantes, frères, sœurs, conjoints) : grouper par parent direct
-      let parentKey=item.person.motherId||item.person.fatherId;
-      
-      // Si c'est un conjoint sans parents renseignés, tenter de le rattacher au parent du partenaire
-      if(!parentKey){
-        let partnerId=item.person.spouseId;
-        if(!partnerId){
-          const partner=items.find(it=>it.person.spouseId===item.person.id);
-          if(partner)partnerId=partner.person.id;
-        }
-        if(partnerId){
-          const partnerPerson=personMap.get(partnerId);
-          if(partnerPerson){
-            parentKey=partnerPerson.motherId||partnerPerson.fatherId||`orphan-${partnerId}`;
-          }
-        }
+      // Collatéraux sans parents (orphelins) : grouper sous un orphelin-key lié au couple s'il existe
+      let partnerId=item.person.spouseId;
+      if(!partnerId){
+        const partner=items.find(it=>it.person.spouseId===item.person.id);
+        if(partner)partnerId=partner.person.id;
       }
-      
-      if(!parentKey){
-        parentKey=`orphan-${item.person.id}`;
-      }
-      grouped.set(`parent-${parentKey}`,[...(grouped.get(`parent-${parentKey}`)??[]),item]);
+      const orphanKey = partnerId ? `orphan-${[item.person.id, partnerId].sort().join("-")}` : `orphan-${item.person.id}`;
+      grouped.set(`parent-${orphanKey}`,[...(grouped.get(`parent-${orphanKey}`)??[]),item]);
     }
   }
 
