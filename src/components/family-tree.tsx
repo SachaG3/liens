@@ -482,17 +482,45 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
     // Passe 2 — recoller les feuilles : un groupe sans descendant se recentre
     // sous ses parents ; les groupes qui ancrent la génération du dessus
     // restent quasi immobiles (poids très élevé dans la fusion de blocs).
-    const ANCHOR_WEIGHT=1e6;
-    for(const [,row] of rows){
-        const groups=buildGroups(row);
-        for(const group of groups){
-            const hasDescendants=group.nodes.some(node=>(childrenByParent.get(node.id)??[]).length>0);
-            const anchor=parentCenter(group.nodes);
-            if(hasDescendants||anchor===null){group.center=averageX(group.nodes);group.weight=ANCHOR_WEIGHT;}
-            else group.center=anchor;
+    // Taille du clan (la personne + tous ses descendants affichés) :
+    // sert de poids pour que les gros sous-arbres imposent leur position.
+    const subtreeCache=new Map<string,number>();
+    const subtreeSize=(id:string,seen=new Set<string>()):number=>{
+        if(seen.has(id))return 0;
+        const cached=subtreeCache.get(id);
+        if(cached!==undefined)return cached;
+        seen.add(id);
+        const size=1+(childrenByParent.get(id)??[]).reduce((sum,child)=>sum+subtreeSize(child.id,seen),0);
+        subtreeCache.set(id,size);
+        return size;
+    };
+    const groupWeight=(group:Group)=>group.nodes.reduce((sum,node)=>sum+subtreeSize(node.id),0);
+
+    // Passe descendante : chaque groupe se recentre sous ses parents,
+    // génération après génération. Un conflit en haut fait donc glisser
+    // tout le clan vers le bas, au lieu de laisser un décalage.
+    const sweepDown=()=>{
+        for(const [,row] of [...rows.entries()].sort(([a],[b])=>a-b)){
+            const groups=buildGroups(row);
+            for(const group of groups){
+                group.center=parentCenter(group.nodes)??averageX(group.nodes);
+                group.weight=groupWeight(group);
+            }
+            layoutRow(groups);
         }
-        layoutRow(groups);
-    }
+    };
+    // Passe montante : les ancêtres se recentrent sur leurs enfants déplacés.
+    const sweepUp=()=>{
+        for(const [,row] of [...rows.entries()].sort(([a],[b])=>b-a)){
+            const groups=buildGroups(row);
+            for(const group of groups){
+                group.center=childCenter(group.nodes)??parentCenter(group.nodes)??averageX(group.nodes);
+                group.weight=groupWeight(group);
+            }
+            layoutRow(groups);
+        }
+    };
+    sweepDown();sweepUp();sweepDown();
 }
 
 function centerTreeOnMe(nodes:Node[]) {
