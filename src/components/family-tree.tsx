@@ -401,12 +401,13 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
         return peopleFindId(personMap,person=>person.spouseId===id);
     };
 
-    const placed=new Set<string>();
     const childrenByParent=new Map<string,Node[]>();
     for(const node of nodesById.values()){
         const person=personMap.get(node.id);
-        for(const parentId of [person?.motherId,person?.fatherId])if(parentId)childrenByParent.set(parentId,[...(childrenByParent.get(parentId)??[]),node]);
+        for(const parentId of [person?.motherId,person?.fatherId])if(parentId&&nodesById.has(parentId))childrenByParent.set(parentId,[...(childrenByParent.get(parentId)??[]),node]);
     }
+
+    const placed=new Set<string>();
     const childCenter=(members:Node[])=>{
         const children=[...new Set(members.flatMap(node=>(childrenByParent.get(node.id)??[]).filter(child=>placed.has(child.id))))];
         return children.length?averageX(children):null;
@@ -414,30 +415,23 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
     const parentCenter=(members:Node[])=>{
         const parents=members.flatMap(node=>{
             const person=personMap.get(node.id);
-            return [person?.motherId,person?.fatherId].flatMap(id=>id&&placed.has(id)?[nodesById.get(id)!]:[]);
+            return [person?.motherId,person?.fatherId].flatMap(id=>id&&placed.has(id)&&nodesById.has(id)?[nodesById.get(id)!]:[]);
         });
         return parents.length?averageX(parents):null;
     };
 
-    // Traiter les rangées par distance à la génération 0 :
-    // les enfants d'un ancêtre sont déjà placés quand on place l'ancêtre,
-    // et les parents d'un descendant sont déjà placés quand on place le descendant.
-    for(const [y,row] of [...rows.entries()].sort(([a],[b])=>Math.abs(a)-Math.abs(b)||a-b)){
+    type Group={nodes:Node[];center:number;weight:number};
+    const buildGroups=(row:Node[]):Group[]=>{
         const remaining=new Set(row.map(node=>node.id));
-        const groups:Array<{nodes:Node[];center:number}>=[];
-
-        // Les couples restent ensemble
+        const groups:Group[]=[];
         for(const node of row){
             if(!remaining.has(node.id))continue;
             const spouseId=spouseOf(node.id);
             const spouse=spouseId&&nodesById.get(spouseId);
             if(!spouse||spouse.position.y!==node.position.y||!remaining.has(spouse.id))continue;
-            const pair=orderCoupleByParents(node,spouse,nodesById,personMap);
-            groups.push({nodes:pair,center:0});
+            groups.push({nodes:orderCoupleByParents(node,spouse,nodesById,personMap),center:0,weight:2});
             remaining.delete(node.id);remaining.delete(spouse.id);
         }
-
-        // Puis les fratries
         const siblings=new Map<string,Node[]>();
         for(const node of row){
             if(!remaining.has(node.id))continue;
@@ -446,23 +440,16 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
             const key=parentIds.length?parentIds.join("|"):`single-${node.id}`;
             siblings.set(key,[...(siblings.get(key)??[]),node]);
         }
-        for(const members of siblings.values())groups.push({nodes:members.sort((a,b)=>a.position.x-b.position.x),center:0});
+        for(const members of siblings.values())groups.push({nodes:members.sort((a,b)=>a.position.x-b.position.x),center:0,weight:members.length});
+        return groups;
+    };
 
-        // Centre souhaité : ancêtres → au-dessus des enfants, descendants → sous les parents
-        for(const group of groups){
-            const fromChildren=childCenter(group.nodes);
-            const fromParents=parentCenter(group.nodes);
-            group.center=(y<0?(fromChildren??fromParents):(fromParents??fromChildren))??averageX(group.nodes);
-        }
+    const layoutRow=(groups:Group[])=>{
         groups.sort((a,b)=>a.center-b.center);
-
-        // Fusion de blocs : les groupes qui se chevauchent fusionnent et le bloc
-        // se recentre sur la moyenne pondérée des positions souhaitées,
-        // au lieu de tout pousser vers la droite.
-        type Block={start:number;width:number;weight:number;groups:Array<{nodes:Node[];center:number}>};
+        type Block={start:number;width:number;weight:number;groups:Group[]};
         const blocks:Block[]=[];
         for(const group of groups){
-            let block:Block={start:group.center-(group.nodes.length-1)*HALF_STEP,width:group.nodes.length*NODE_STEP+GROUP_GAP,weight:group.nodes.length,groups:[group]};
+            let block:Block={start:group.center-(group.nodes.length-1)*HALF_STEP,width:group.nodes.length*NODE_STEP+GROUP_GAP,weight:group.weight,groups:[group]};
             while(blocks.length&&blocks[blocks.length-1].start+blocks[blocks.length-1].width>block.start){
                 const prev=blocks.pop()!;
                 const start=(prev.start*prev.weight+(block.start-prev.width)*block.weight)/(prev.weight+block.weight);
@@ -477,8 +464,34 @@ function arrangeGenerationGroups(nodes:Node[],personMap:Map<string,FamilyPerson>
                 x+=group.nodes.length*NODE_STEP+GROUP_GAP;
             }
         }
+    };
 
+    // Passe 1 — du centre vers l'extérieur : les ancêtres se centrent sur leurs
+    // enfants déjà placés, les descendants sur leurs parents déjà placés.
+    for(const [y,row] of [...rows.entries()].sort(([a],[b])=>Math.abs(a)-Math.abs(b)||a-b)){
+        const groups=buildGroups(row);
+        for(const group of groups){
+            const fromChildren=childCenter(group.nodes);
+            const fromParents=parentCenter(group.nodes);
+            group.center=(y<0?(fromChildren??fromParents):(fromParents??fromChildren))??averageX(group.nodes);
+        }
+        layoutRow(groups);
         for(const node of row)placed.add(node.id);
+    }
+
+    // Passe 2 — recoller les feuilles : un groupe sans descendant se recentre
+    // sous ses parents ; les groupes qui ancrent la génération du dessus
+    // restent quasi immobiles (poids très élevé dans la fusion de blocs).
+    const ANCHOR_WEIGHT=1e6;
+    for(const [,row] of rows){
+        const groups=buildGroups(row);
+        for(const group of groups){
+            const hasDescendants=group.nodes.some(node=>(childrenByParent.get(node.id)??[]).length>0);
+            const anchor=parentCenter(group.nodes);
+            if(hasDescendants||anchor===null){group.center=averageX(group.nodes);group.weight=ANCHOR_WEIGHT;}
+            else group.center=anchor;
+        }
+        layoutRow(groups);
     }
 }
 
