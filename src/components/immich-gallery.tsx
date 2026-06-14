@@ -50,43 +50,53 @@ function AsyncImmichGallery({contactId}:{contactId:string}) {
   const [loading,setLoading]=useState(true);
   const [selectedIndex,setSelectedIndex]=useState<number|null>(null);
   async function loadMore() {
-    if(!nextPage)return;
+    if(!nextPage||loading)return 0;
     setLoading(true);setError("");
     try {
       const response=await fetch(`/api/immich/contacts/${encodeURIComponent(contactId)}/gallery?page=${nextPage}`);
       if(!response.ok)throw new Error();
       const body=await response.json();
-      setAssets(current=>[...current,...body.assets.filter((asset:ImmichAsset)=>!current.some(item=>item.id===asset.id))]);
+      const additions=(body.assets as ImmichAsset[]).filter(asset=>!assets.some(item=>item.id===asset.id));
+      setAssets(current=>[...current,...additions]);
       setNextPage(body.nextPage);setTotal(body.total);
+      return additions.length;
     } catch {
       setError("Impossible de charger les photos depuis Immich.");
+      return 0;
     } finally {
       setLoading(false);
     }
   }
   useEffect(()=>{let active=true;fetch(`/api/immich/contacts/${encodeURIComponent(contactId)}/gallery?page=1`).then(response=>response.ok?response.json():Promise.reject()).then(body=>{if(active){setAssets(body.assets);setNextPage(body.nextPage);setTotal(body.total)}}).catch(()=>{if(active)setError("Impossible de charger les photos depuis Immich.")}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[contactId]);
-  useEffect(()=>{if(selectedIndex===null)return;const keydown=(event:KeyboardEvent)=>{if(event.key==="Escape")setSelectedIndex(null);if(event.key==="ArrowLeft")setSelectedIndex(index=>index===null?null:Math.max(0,index-1));if(event.key==="ArrowRight")setSelectedIndex(index=>index===null?null:Math.min(assets.length-1,index+1))};window.addEventListener("keydown",keydown);return()=>window.removeEventListener("keydown",keydown)},[selectedIndex,assets.length]);
-  if(error)return <section className="card p-6"><p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">{error}</p></section>;
+  async function showNext() {
+    if(selectedIndex===null)return;
+    if(selectedIndex<assets.length-1){setSelectedIndex(selectedIndex+1);return}
+    const firstNewIndex=assets.length;
+    if(await loadMore()>0)setSelectedIndex(firstNewIndex);
+  }
+  if(error&&!assets.length)return <section className="card p-6"><p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">{error}</p></section>;
   if(loading&&!assets.length)return <section className="card grid min-h-64 place-items-center p-6 text-sm text-muted-foreground"><LoaderCircle className="animate-spin"/>Chargement des photos Immich…</section>;
   return <section className="card p-6"><div className="mb-5"><h2 className="flex items-center gap-2 text-xl font-semibold"><Images className="size-5"/>Photos Immich</h2><p className="text-sm text-muted-foreground">{assets.length}{total>assets.length?` sur ${total}`:""} photo{total!==1?"s":""} chargée{assets.length!==1?"s":""}</p></div>{assets.length?<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">{assets.map((asset,index)=><button type="button" key={asset.id} onClick={()=>setSelectedIndex(index)} className="group relative aspect-square overflow-hidden rounded-lg bg-muted text-left">
     {/* eslint-disable-next-line @next/next/no-img-element */}
     <img src={asset.url} alt={asset.originalFileName||"Photo Immich"} loading="lazy" className="size-full object-cover transition duration-300 group-hover:scale-105"/>
     {asset.fileCreatedAt&&<span className="absolute inset-x-0 bottom-0 bg-black/55 px-2 py-1 text-[11px] text-white opacity-0 transition group-hover:opacity-100">{new Date(asset.fileCreatedAt).toLocaleDateString("fr-FR")}</span>}
   </button>)}</div>:<p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Aucune photo reconnue pour cette personne dans Immich.</p>}
+  {error&&<p className="mt-4 rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{error}</p>}
   {nextPage&&<Button type="button" variant="outline" size="lg" className="mx-auto mt-6 flex" disabled={loading} onClick={()=>void loadMore()}>{loading&&<LoaderCircle className="animate-spin"/>}{loading?"Chargement…":"Charger 24 photos supplémentaires"}</Button>}
-  {selectedIndex!==null&&<PhotoViewer assets={assets} index={selectedIndex} onChange={setSelectedIndex} onClose={()=>setSelectedIndex(null)}/>}</section>;
+  {selectedIndex!==null&&<PhotoViewer assets={assets} index={selectedIndex} hasMore={!!nextPage} loading={loading} onPrevious={()=>setSelectedIndex(Math.max(0,selectedIndex-1))} onNext={()=>void showNext()} onClose={()=>setSelectedIndex(null)}/>}</section>;
 }
 
-function PhotoViewer({assets,index,onChange,onClose}:{assets:ImmichAsset[];index:number;onChange:(index:number)=>void;onClose:()=>void}) {
+function PhotoViewer({assets,index,hasMore,loading,onPrevious,onNext,onClose}:{assets:ImmichAsset[];index:number;hasMore:boolean;loading:boolean;onPrevious:()=>void;onNext:()=>void;onClose:()=>void}) {
   const asset=assets[index];
-  return <div role="dialog" aria-modal="true" aria-label="Lecteur de photos Immich" className="fixed inset-0 z-50 grid grid-rows-[auto_1fr_auto] bg-black/95 p-3 text-white sm:p-5">
+  useEffect(()=>{const keydown=(event:KeyboardEvent)=>{if(event.key==="Escape")onClose();if(event.key==="ArrowLeft"&&index>0)onPrevious();if(event.key==="ArrowRight"&&(index<assets.length-1||hasMore))onNext()};window.addEventListener("keydown",keydown);return()=>window.removeEventListener("keydown",keydown)},[assets.length,hasMore,index,onClose,onNext,onPrevious]);
+  return <div role="dialog" aria-modal="true" aria-label="Lecteur de photos Immich" className="fixed inset-0 z-50 grid grid-rows-[auto_minmax(0,1fr)_auto] bg-black/95 p-3 text-white sm:p-5">
     <div className="flex items-center justify-between gap-3"><p className="truncate text-sm text-white/70">{index+1} / {assets.length}{asset.originalFileName&&` · ${asset.originalFileName}`}</p><button type="button" onClick={onClose} className="grid size-10 place-items-center rounded-full bg-white/10 transition hover:bg-white/20" title="Fermer"><X/></button></div>
-    <div className="relative grid min-h-0 place-items-center">
-      <button type="button" onClick={()=>onChange(index-1)} disabled={index===0} className="absolute left-0 z-10 grid size-11 place-items-center rounded-full bg-black/50 transition hover:bg-white/15 disabled:opacity-20 sm:left-3" title="Photo précédente"><ChevronLeft/></button>
+    <div className="relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden py-2">
+      <button type="button" onClick={onPrevious} disabled={index===0} className="absolute left-0 z-10 grid size-11 place-items-center rounded-full bg-black/50 transition hover:bg-white/15 disabled:opacity-20 sm:left-3" title="Photo précédente"><ChevronLeft/></button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={asset.url} alt={asset.originalFileName||"Photo Immich"} className="max-h-full max-w-full object-contain"/>
-      <button type="button" onClick={()=>onChange(index+1)} disabled={index===assets.length-1} className="absolute right-0 z-10 grid size-11 place-items-center rounded-full bg-black/50 transition hover:bg-white/15 disabled:opacity-20 sm:right-3" title="Photo suivante"><ChevronRight/></button>
+      <img src={asset.url} alt={asset.originalFileName||"Photo Immich"} className="block h-auto w-auto max-h-[calc(100dvh-7rem)] max-w-[calc(100vw-1.5rem)] object-contain sm:max-w-[calc(100vw-2.5rem)]"/>
+      <button type="button" onClick={onNext} disabled={loading||index===assets.length-1&&!hasMore} className="absolute right-0 z-10 grid size-11 place-items-center rounded-full bg-black/50 transition hover:bg-white/15 disabled:opacity-20 sm:right-3" title={index===assets.length-1&&hasMore?"Charger et afficher la photo suivante":"Photo suivante"}>{loading&&index===assets.length-1?<LoaderCircle className="animate-spin"/>:<ChevronRight/>}</button>
     </div>
-    <p className="pt-3 text-center text-xs text-white/55">{asset.fileCreatedAt?new Date(asset.fileCreatedAt).toLocaleDateString("fr-FR",{dateStyle:"long"}):"Utilisez les flèches du clavier pour naviguer"}</p>
+    <p className="pt-3 text-center text-xs text-white/55">{index===assets.length-1&&hasMore?"La photo suivante chargera automatiquement le prochain lot.":asset.fileCreatedAt?new Date(asset.fileCreatedAt).toLocaleDateString("fr-FR",{dateStyle:"long"}):"Utilisez les flèches du clavier pour naviguer"}</p>
   </div>;
 }
