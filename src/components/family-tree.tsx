@@ -514,14 +514,6 @@ function separateBranchesAroundMe(nodes:Node[]) {
     for(const node of paternal)node.position.x-=paternalOverflow;
     for(const node of maternal)node.position.x+=maternalOverflow;
 }
-function descendantCenter(group:Node[],nodesById:Map<string,Node>,personMap:Map<string,FamilyPerson>) {
-    const ids=new Set(group.map(node=>node.id));
-    const children=[...nodesById.values()].filter(node=>{
-        const person=personMap.get(node.id);
-        return !!person&&(ids.has(person.motherId??"")||ids.has(person.fatherId??""));
-    });
-    return children.length?averageX(children):null;
-}
 function orderCoupleByParents(first:Node,second:Node,nodesById:Map<string,Node>,personMap:Map<string,FamilyPerson>) {
     const parentKey=(node:Node)=>{
         const person=personMap.get(node.id);
