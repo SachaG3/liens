@@ -17,7 +17,7 @@ function state(score:number) {
   return {label:"À reconnecter",dot:"bg-rose-500"};
 }
 
-export function PeopleList({people,circles,totalCount,totalAllContacts,initialRelation="all",initialCircle="all",initialQuery="",initialSort="priority",initialStatus="all"}:{people:Person[];circles:Array<{id:string;name:string;color:string}>;totalCount:number;totalAllContacts:number;initialRelation?:string;initialCircle?:string;initialQuery?:string;initialSort?:string;initialStatus?:string}) {
+export function PeopleList({people,circles,availableRelations,totalCount,totalAllContacts,initialRelation="all",initialCircle="all",initialQuery="",initialSort="priority",initialStatus="all"}:{people:Person[];circles:Array<{id:string;name:string;color:string}>;availableRelations?:string[];totalCount:number;totalAllContacts:number;initialRelation?:string;initialCircle?:string;initialQuery?:string;initialSort?:string;initialStatus?:string}) {
   const router=useRouter();
   const pathname=usePathname();
   const searchParams=useSearchParams();
@@ -30,7 +30,7 @@ export function PeopleList({people,circles,totalCount,totalAllContacts,initialRe
   const [status,setStatus]=useState(initialStatus);
   const debounceTimer=useRef<NodeJS.Timeout|null>(null);
 
-  const relations=useMemo(()=>[...new Set(people.flatMap(person=>person.relationTags))].sort((a,b)=>a.localeCompare(b,"fr")),[people]);
+  const relations=useMemo(()=>availableRelations??[...new Set(people.flatMap(person=>person.relationTags))].sort((a,b)=>a.localeCompare(b,"fr")),[availableRelations,people]);
   const hasFilters=query!==""||circle!=="all"||relation!=="all"||status!=="all";
 
   const updateURL=(params:Record<string,string>)=>{

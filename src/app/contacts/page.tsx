@@ -51,19 +51,25 @@ export default async function Contacts({searchParams}:{searchParams:Promise<{rel
     where.AND=andConditions;
   }
 
-  const [contacts,circles,totalAllContacts]=await Promise.all([
-    db.contact.findMany({
-      where,
-      include:{relationTags:true,interactions:{orderBy:{happenedAt:"desc"},take:1},circles:{include:{circle:true}}},
-      orderBy:[{firstName:"asc"},{lastName:"asc"}],
-    }),
+  const databasePagination=sort==="name";
+  const requestedPage=Math.max(1,parseInt(page)||1);
+  const [circles,totalAllContacts,totalContacts,contactOptions,relationRows]=await Promise.all([
     db.circle.findMany({where:{userId:user.id},orderBy:{name:"asc"}}),
     db.contact.count({where:{userId:user.id}}),
+    db.contact.count({where}),
+    db.contact.findMany({where:{userId:user.id},select:{id:true,firstName:true,lastName:true},orderBy:[{firstName:"asc"},{lastName:"asc"}]}),
+    db.contact.findMany({where,select:{relationTags:{select:{tag:true}},relationType:true}}),
   ]);
 
-  const totalContacts=contacts.length;
   const totalPages=Math.max(1,Math.ceil(totalContacts/ITEMS_PER_PAGE));
-  const currentPage=Math.min(Math.max(1,parseInt(page)||1),totalPages);
+  const currentPage=Math.min(requestedPage,totalPages);
+  const contacts=await db.contact.findMany({
+    where,
+    include:{relationTags:true,interactions:{orderBy:{happenedAt:"desc"},take:1},circles:{include:{circle:true}}},
+    orderBy:[{firstName:"asc"},{lastName:"asc"}],
+    skip:databasePagination?(currentPage-1)*ITEMS_PER_PAGE:undefined,
+    take:databasePagination?ITEMS_PER_PAGE:undefined,
+  });
 
   const allPeople=contacts.map(c=>({id:c.id,firstName:c.firstName,lastName:c.lastName,photo:c.photo,email:c.email,phone:c.phone,company:c.company,followUpStatus:c.followUpStatus,relationTags:[...new Set([...c.relationTags.map(item=>item.tag),...(c.relationType?[c.relationType]:[])])],lastInteraction:c.interactions[0]?.happenedAt.toISOString()??null,score:relationshipScore(c.interactions[0]?.happenedAt??null,effectiveFrequency(c.desiredFrequency,c.circles.map(({circle})=>circle.frequency))),circles:c.circles.map(({circle})=>circle)}));
 
@@ -72,9 +78,10 @@ export default async function Contacts({searchParams}:{searchParams:Promise<{rel
   }else if(sort==="recent"){
     allPeople.sort((a,b)=>(b.lastInteraction?new Date(b.lastInteraction).getTime():0)-(a.lastInteraction?new Date(a.lastInteraction).getTime():0)||a.firstName.localeCompare(b.firstName,"fr"));
   }
-  const people=allPeople.slice((currentPage-1)*ITEMS_PER_PAGE,currentPage*ITEMS_PER_PAGE);
+  const people=databasePagination?allPeople:allPeople.slice((currentPage-1)*ITEMS_PER_PAGE,currentPage*ITEMS_PER_PAGE);
+  const availableRelations=[...new Set(relationRows.flatMap(contact=>[...contact.relationTags.map(item=>item.tag),...(contact.relationType?[contact.relationType]:[])]))].sort((a,b)=>a.localeCompare(b,"fr"));
 
   const hasFilters=circle!=="all"||relation!=="all"||status!=="all"||q!=="";
 
-  return <Shell><div className="mx-auto max-w-6xl"><header className="mb-8 flex items-end justify-between gap-4"><div><p className="mb-2 text-sm text-muted-foreground">Votre carnet</p><h1 className="text-3xl font-semibold tracking-tight">Personnes</h1><p className="mt-2 text-sm text-muted-foreground">{hasFilters?`${totalContacts} sur ${totalAllContacts}`:`${totalContacts}`} relation{totalContacts!==1?"s":""}, personnelles et professionnelles.</p></div><Modal title="Ajouter une personne" label="Personne" wide><ContactForm circles={circles} people={contacts}/></Modal></header><PeopleList people={people} circles={circles} totalCount={totalContacts} totalAllContacts={totalAllContacts} initialRelation={relation} initialCircle={circle} initialQuery={q} initialSort={sort} initialStatus={status}/><PaginationControls totalItems={totalContacts} itemsPerPage={ITEMS_PER_PAGE} currentPage={currentPage}/></div></Shell>;
+  return <Shell><div className="mx-auto max-w-6xl"><header className="mb-8 flex items-end justify-between gap-4"><div><p className="mb-2 text-sm text-muted-foreground">Votre carnet</p><h1 className="text-3xl font-semibold tracking-tight">Personnes</h1><p className="mt-2 text-sm text-muted-foreground">{hasFilters?`${totalContacts} sur ${totalAllContacts}`:`${totalContacts}`} relation{totalContacts!==1?"s":""}, personnelles et professionnelles.</p></div><Modal title="Ajouter une personne" label="Personne" wide><ContactForm circles={circles} people={contactOptions}/></Modal></header><PeopleList people={people} circles={circles} availableRelations={availableRelations} totalCount={totalContacts} totalAllContacts={totalAllContacts} initialRelation={relation} initialCircle={circle} initialQuery={q} initialSort={sort} initialStatus={status}/><PaginationControls totalItems={totalContacts} itemsPerPage={ITEMS_PER_PAGE} currentPage={currentPage}/></div></Shell>;
 }
