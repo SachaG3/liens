@@ -20,6 +20,17 @@ Les données de démonstration sont désactivées par défaut. Pour une instance
 
 `SESSION_COOKIE_SECURE=auto` autorise la connexion en HTTP sur le réseau local et active automatiquement les cookies sécurisés derrière un reverse proxy HTTPS. Utilisez `SESSION_COOKIE_SECURE=true` uniquement si l'application est toujours accessible en HTTPS.
 
+## Galerie Immich
+
+Créez dans Immich une clé API limitée aux permissions `person.read` et `asset.read`, puis configurez :
+
+```bash
+IMMICH_URL=http://adresse-immich:2283/api
+IMMICH_API_KEY=votre-cle-api
+```
+
+Sur une fiche personne, utilisez **Lier à Immich** dans la section **Photos Immich**. La clé reste côté serveur et les images sont servies par un proxy authentifié.
+
 ## Sauvegarde et restauration
 
 Créer une sauvegarde de la base SQLite sans arrêter l'application :

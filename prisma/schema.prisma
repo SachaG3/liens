@@ -57,6 +57,7 @@ model Contact {
   deceasedAt       DateTime?
   source           String          @default("manual")
   sourceId         String          @default("")
+  immichPersonId   String          @default("")
   gender           String          @default("")
   motherId         String?
   mother           Contact?        @relation("Mother", fields: [motherId], references: [id], onDelete: SetNull)

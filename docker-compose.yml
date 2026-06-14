@@ -10,6 +10,8 @@ services:
       SEED_DEMO_DATA: "${SEED_DEMO_DATA:-false}"
       SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-auto}"
       NOMINIS_ENABLED: "${NOMINIS_ENABLED:-false}"
+      IMMICH_URL: "${IMMICH_URL:-}"
+      IMMICH_API_KEY: "${IMMICH_API_KEY:-}"
     volumes:
       - liens_data:/app/prisma/data
     healthcheck:

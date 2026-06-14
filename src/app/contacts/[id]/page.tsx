@@ -17,6 +17,8 @@ import { ContactActivity } from "@/components/contact-activity";
 import { ContactWorkspace } from "@/components/contact-workspace";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { importantDateSuggestions, nextImportantDate } from "@/lib/important-dates";
+import { getImmichAssets, getImmichPeople, isImmichConfigured } from "@/lib/immich";
+import { ImmichGallery, ImmichGalleryTitle, ImmichPersonForm } from "@/components/immich-gallery";
 
 const typeLabels: Record<string,string> = { message:"Message", call:"Appel", meeting:"Rencontre", email:"E-mail" };
 const INTERACTIONS_PER_PAGE = 10;
@@ -35,6 +37,15 @@ export default async function ContactDetail({ params, searchParams }: { params: 
     db.contact.findMany({where:{userId:user.id},select:{id:true,firstName:true,lastName:true,nameDayReference:true,gender:true,motherId:true,fatherId:true,followUpStatus:true,relationTags:{select:{tag:true}}},orderBy:{firstName:"asc"}}),
   ]);
   if (!contact) notFound();
+  const immichConfigured=isImmichConfigured();
+  const [immichPeopleResult,immichAssetsResult]=immichConfigured?await Promise.allSettled([
+    getImmichPeople(),
+    contact.immichPersonId?getImmichAssets(contact.immichPersonId):Promise.resolve([]),
+  ]):[null,null];
+  const immichPeople=immichPeopleResult?.status==="fulfilled"?immichPeopleResult.value:[];
+  const immichAssets=immichAssetsResult?.status==="fulfilled"?immichAssetsResult.value:[];
+  const immichPeopleError=immichPeopleResult?.status==="rejected"?"Impossible de charger la liste des personnes Immich.":undefined;
+  const immichError=immichAssetsResult?.status==="rejected"?"Impossible de charger les photos depuis Immich. Vérifiez l’adresse, la clé API et ses permissions.":undefined;
   const frequency = effectiveFrequency(contact.desiredFrequency,contact.circles.map(({circle})=>circle.frequency));
   const score = relationshipScore(contact.interactions[0]?.happenedAt??null,frequency);
   const today = new Date();today.setHours(0,0,0,0);
@@ -53,6 +64,7 @@ export default async function ContactDetail({ params, searchParams }: { params: 
       {contact.notes&&<div className="mt-5 rounded-lg bg-muted/60 p-4"><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes privées</p><MentionText text={contact.notes} people={people} className="text-sm"/></div>}
       {(contact.linksFrom.length>0||contact.linksTo.length>0)&&<div className="mt-5 flex flex-wrap items-center gap-2 border-t pt-5"><span className="mr-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Link2 className="size-3.5"/>Personnes liées</span>{[...contact.linksFrom.map(link=>({person:link.toContact,label:link.label})),...contact.linksTo.map(link=>({person:link.fromContact,label:link.label}))].map(({person,label})=><Link key={person.id} href={`/contacts/${person.id}`} className="rounded-full border bg-background px-2.5 py-1 text-xs transition hover:bg-muted">@{person.firstName} {person.lastName}{label&&` · ${label}`}</Link>)}</div>}
     </section>
+    <section className="card mb-6 p-6"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><ImmichGalleryTitle count={immichAssets.length}/>{immichConfigured?<Modal title="Lier cette personne à Immich" label={contact.immichPersonId?"Modifier la liaison":"Lier à Immich"} secondary description="Choisissez la personne reconnue par Immich dont les photos doivent apparaître ici."><ImmichPersonForm contactId={contact.id} selectedId={contact.immichPersonId} people={immichPeople} error={immichPeopleError}/></Modal>:<span className="rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">Configurez IMMICH_URL et IMMICH_API_KEY</span>}</div>{contact.immichPersonId?<ImmichGallery assets={immichAssets} error={immichError}/>:<p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Liez cette fiche à une personne Immich pour afficher sa galerie.</p>}</section>
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]"><section className="card p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-xl font-semibold">Historique</h2><p className="text-sm text-muted-foreground">{totalInteractions} échange{totalInteractions!==1?"s":""}</p></div><Modal title="Nouvel échange" label="Échange"><InteractionForm contacts={[contact]} people={people.filter(person=>person.id!==contact.id)}/></Modal></div>
       <div className="space-y-3">{interactions.map(i=><div key={i.id} className="flex gap-3 rounded-lg border p-4"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted"><MessageCircle size={16}/></span><div className="min-w-0 flex-1"><div className="flex justify-between gap-3"><b className="text-sm">{typeLabels[i.type]||i.type}</b><span className="text-xs text-muted-foreground">{i.happenedAt.toLocaleDateString("fr-FR")}</span></div>{i.note&&<MentionText text={i.note} people={people} className="mt-1 text-sm text-muted-foreground"/>}</div><Modal title="Modifier l’échange" label="" secondary><EditInteractionForm interaction={i} people={people}/></Modal><ConfirmDelete action={deleteInteraction} id={i.id} message="Supprimer cet échange ?"/></div>)}{!interactions.length&&<Empty text="Aucun échange enregistré."/ >}</div>
       <PaginationControls totalItems={totalInteractions} itemsPerPage={INTERACTIONS_PER_PAGE} currentPage={currentPage}/>

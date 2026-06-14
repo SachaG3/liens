@@ -9,6 +9,7 @@ import { createMentionLinks } from "@/lib/mentions";
 import { relationTypeOptions } from "@/lib/relation-types";
 import { deleteImage, saveImage } from "@/lib/media";
 import { importantDateSuggestions, validNameDayReference } from "@/lib/important-dates";
+import { getImmichPerson, isImmichConfigured } from "@/lib/immich";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
@@ -136,6 +137,24 @@ export async function updateContact(form: FormData) {
   revalidatePath("/contacts");
   revalidatePath(`/contacts/${id}`);
   revalidatePath("/map");
+  return true;
+}
+
+export async function linkImmichPerson(form: FormData) {
+  const user = await requireUser();
+  const contactId = text(form, "contactId");
+  const immichPersonId = text(form, "immichPersonId");
+  const contact = await db.contact.findFirst({ where: { id: contactId, userId: user.id } });
+  if (!contact || !isImmichConfigured()) return false;
+  if (immichPersonId) {
+    try {
+      await getImmichPerson(immichPersonId);
+    } catch {
+      return false;
+    }
+  }
+  await db.contact.update({ where: { id: contactId }, data: { immichPersonId } });
+  revalidatePath(`/contacts/${contactId}`);
   return true;
 }
 
