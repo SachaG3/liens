@@ -13,7 +13,6 @@ export async function saveImage(file:FormDataEntryValue|null,previous="") {
   await mkdir(mediaDir,{recursive:true});
   const name=`${randomBytes(18).toString("hex")}.${extension}`;
   await writeFile(path.join(mediaDir,name),Buffer.from(await file.arrayBuffer()));
-  if(previous)await deleteImage(previous);
   return name;
 }
 
