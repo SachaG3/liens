@@ -56,20 +56,24 @@ export async function getImmichPerson(id: string): Promise<ImmichPerson> {
   return response.json() as Promise<ImmichPerson>;
 }
 
-export async function getImmichAssets(personId: string): Promise<ImmichAsset[]> {
+export async function getImmichAssets(personId: string, page=1): Promise<{items:ImmichAsset[];nextPage:string|null;total:number}> {
   const response = await immichFetch("/search/metadata", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      page: 1,
+      page,
       personIds: [personId],
       size: 24,
       type: "IMAGE",
       withArchived: false,
     }),
   });
-  const body = await response.json() as { assets?: { items?: ImmichAsset[] } };
-  return body.assets?.items ?? [];
+  const body = await response.json() as { assets?: { items?: ImmichAsset[];nextPage?:string|null;total?:number } };
+  return {
+    items:body.assets?.items??[],
+    nextPage:body.assets?.nextPage??null,
+    total:body.assets?.total??0,
+  };
 }
 
 function assetSignature(assetId: string) {
