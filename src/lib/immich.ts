@@ -47,7 +47,7 @@ export async function getImmichPeople(): Promise<ImmichPerson[]> {
   const body = await response.json() as { people?: ImmichPerson[] } | ImmichPerson[];
   const people = Array.isArray(body) ? body : body.people ?? [];
   return people
-    .filter((person) => !person.isHidden)
+    .filter((person) => !person.isHidden && person.name?.trim())
     .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id, "fr"));
 }
 

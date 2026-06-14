@@ -7,13 +7,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 
 const ModalCloseContext = createContext<(() => void) | null>(null);
 
-export function Modal({ title, label, children, secondary = false, compact = false, icon, description = "Renseignez uniquement les informations utiles aujourd’hui.", wide = false }: { title: string; label: string; children: ReactNode; secondary?: boolean; compact?:boolean; icon?:ReactNode; description?:string; wide?:boolean }) {
+export function Modal({ title, label, children, secondary = false, compact = false, icon, description = "Renseignez uniquement les informations utiles aujourd’hui.", wide = false, lazy = false }: { title: string; label: string; children: ReactNode; secondary?: boolean; compact?:boolean; icon?:ReactNode; description?:string; wide?:boolean;lazy?:boolean }) {
   const [open,setOpen]=useState(false);
   return <Dialog open={open} onOpenChange={setOpen}>
     <DialogTrigger render={<Button variant={secondary?"outline":"default"} size={label?(compact?"sm":"lg"):"icon-sm"} title={label||title}/>}>{icon??(label?<Plus/>:<Pencil/>)}{label}</DialogTrigger>
     <DialogContent className={wide?"max-h-[90vh] overflow-y-auto sm:max-w-2xl":"max-h-[90vh] overflow-y-auto sm:max-w-xl"}>
       <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
-      <ModalCloseContext.Provider value={()=>setOpen(false)}>{children}</ModalCloseContext.Provider>
+      <ModalCloseContext.Provider value={()=>setOpen(false)}>{!lazy||open?children:null}</ModalCloseContext.Provider>
     </DialogContent>
   </Dialog>;
 }
