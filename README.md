@@ -20,6 +20,8 @@ Les données de démonstration sont désactivées par défaut. Pour une instance
 
 `SESSION_COOKIE_SECURE=auto` autorise la connexion en HTTP sur le réseau local et active automatiquement les cookies sécurisés derrière un reverse proxy HTTPS. Utilisez `SESSION_COOKIE_SECURE=true` uniquement si l'application est toujours accessible en HTTPS.
 
+Les inscriptions sont ouvertes par défaut. Configurez `REGISTRATION_OPEN=false` après avoir créé les comptes autorisés pour fermer les nouvelles inscriptions.
+
 ## Galerie Immich
 
 Créez dans Immich une clé API limitée aux permissions `person.read` et `asset.read`, puis configurez :
@@ -33,22 +35,21 @@ Sur une fiche personne, utilisez **Lier à Immich** dans la section **Photos Imm
 
 ## Sauvegarde et restauration
 
-Créer une sauvegarde de la base SQLite sans arrêter l'application :
+Créer une sauvegarde complète de la base SQLite et des photos importées sans arrêter l'application :
 
 ```bash
-docker compose exec liens cp /app/prisma/data/family.db /tmp/family.db
-docker compose cp liens:/tmp/family.db ./family-backup.db
+./scripts/backup.sh
 ```
 
 Restaurer une sauvegarde :
 
 ```bash
 docker compose stop liens
-docker compose cp ./family-backup.db liens:/app/prisma/data/family.db
-docker compose start liens
+docker compose run --rm --no-deps -v "$PWD:/backup" liens sh -c 'rm -rf /app/prisma/data && tar -xzf /backup/liens-data-backup.tar.gz -C /app/prisma'
+docker compose up -d liens
 ```
 
-Le fichier de sauvegarde contient les comptes, contacts, cercles, interactions et rappels. Conservez-le dans un emplacement privé.
+L’archive contient les comptes, contacts, cercles, interactions, rappels et médias importés. Conservez-la dans un emplacement privé.
 
 ## Développement
 
@@ -57,6 +58,16 @@ npm install
 npm run db:push
 npm run dev
 ```
+
+Avant de proposer un changement :
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+Consultez `CONTRIBUTING.md` pour les conventions de messages de commit.
 
 ## Fonctionnalités
 

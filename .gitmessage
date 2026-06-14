@@ -1,0 +1,6 @@
+type(périmètre): description concise
+
+# Exemples :
+# fix(arbre): préserver l’ordre des couples entre les générations
+# feat(immich): ajouter la galerie paginée des contacts
+# test(authentification): couvrir l’autorisation entre utilisateurs
