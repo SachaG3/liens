@@ -21,9 +21,9 @@ function nextBirthday(date:Date) {
   return next;
 }
 
-export default async function RemindersPage({searchParams}:{searchParams:Promise<{page?:string}>}) {
+export default async function RemindersPage({searchParams}:{searchParams:Promise<{page?:string;notifications?:string;sent?:string}>}) {
   const user=await requireUser();
-  const {page="1"}=await searchParams;
+  const {page="1",notifications,sent="0"}=await searchParams;
   const ITEMS_PER_PAGE=20;
 
   const [reminders,contacts,importantDates]=await Promise.all([
@@ -46,6 +46,7 @@ export default async function RemindersPage({searchParams}:{searchParams:Promise
   const suggestions=importantDateSuggestions(user,contacts).filter(item=>!existingAutomatic.has(`${item.contactId}:${item.sourceKey}`));
   const holidays=(await frenchPublicHolidays(TODAY.getFullYear())).filter(item=>item.date>=TODAY&&item.date.getTime()-TODAY.getTime()<=180*86_400_000);
   return <Shell><div className="mx-auto max-w-5xl"><header className="mb-9 flex flex-wrap items-end justify-between gap-4"><div><p className="mb-2 text-sm text-muted-foreground">Votre mémoire externe</p><h1 className="text-3xl font-semibold tracking-tight">Rappels et dates</h1><p className="mt-2 text-sm text-muted-foreground">Ce qui mérite votre attention, au bon moment.</p></div><div className="flex gap-2">{suggestions.length>0&&<Modal title="Suggestions automatiques" label="Suggestions" secondary icon={<Sparkles/>} description="Dates calculées depuis les prénoms, votre arbre généalogique et vos relations." wide><ImportantDateSuggestions suggestions={suggestions}/></Modal>}<Modal title="Nouveau rappel" label="Rappel"><ReminderForm contacts={contacts.filter(c=>c.followUpStatus==="active")}/></Modal></div></header>
+    {notifications&&<p className={`mb-6 rounded-lg p-3 text-sm ${notifications==="success"?"bg-emerald-500/10 text-emerald-700 dark:text-emerald-300":"bg-destructive/10 text-destructive"}`}>{notifications==="success"?`${sent} notification(s) envoyée(s).`:notifications==="rate-limit"?"Trop de demandes. Réessayez dans quelques minutes.":`${sent} notification(s) envoyée(s), mais au moins un canal a échoué.`}</p>}
     <div className="grid gap-8 lg:grid-cols-[1.35fr_.75fr]"><div className="space-y-8">
       <ReminderSection title="En retard" icon={<Clock3/>} reminders={overdue} empty="Aucun rappel en retard." destructive/>
       <ReminderSection title="À venir" icon={<Bell/>} reminders={upcoming} empty="Aucun rappel à venir."/>

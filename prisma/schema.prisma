@@ -24,6 +24,7 @@ model User {
   circles      Circle[]
   debts        Debt[]
   pets         Pet[]
+  notificationPreference NotificationPreference?
   createdAt    DateTime      @default(now())
 }
 
@@ -134,7 +135,37 @@ model Reminder {
   title     String
   dueAt     DateTime
   done      Boolean  @default(false)
+  deliveries NotificationDelivery[]
   createdAt DateTime @default(now())
+}
+
+model NotificationPreference {
+  userId             String   @id
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailEnabled       Boolean  @default(false)
+  emailAddress       String   @default("")
+  discordEnabled     Boolean  @default(false)
+  discordWebhookUrl  String   @default("")
+  signalEnabled      Boolean  @default(false)
+  signalRecipient    String   @default("")
+  ntfyEnabled        Boolean  @default(false)
+  ntfyTopic          String   @default("")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model NotificationDelivery {
+  id         String   @id @default(cuid())
+  reminderId String
+  reminder   Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  channel    String
+  dueAt      DateTime
+  sentAt     DateTime?
+  error      String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([reminderId, channel, dueAt])
 }
 
 model GiftIdea {
