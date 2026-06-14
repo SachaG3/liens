@@ -66,7 +66,7 @@ function RelationTagPicker({selected=[]}:{selected?:string[]}) {
 }
 
 function NameDayReferenceField({value=""}:{value?:string}) {
-  return <FormField label="Fête du prénom" hint="Choisissez un prénom de référence seulement si la détection automatique ne convient pas."><NativeSelect name="nameDayReference" defaultValue={value}><option value="">Détection automatique</option>{nameDayOptions.map(option=><option key={option.value} value={option.value}>{option.name} · {formatNameDay(option.date)}</option>)}</NativeSelect></FormField>;
+  return <FormField label="Fête du prénom" hint="Choisissez un prénom de référence seulement si la détection automatique ne convient pas."><NativeSelect name="nameDayReference" defaultValue={value}><option value="">Détection automatique</option>{nameDayOptions.map((option,index)=><option key={`${option.value}-${index}`} value={option.value}>{option.name} · {formatNameDay(option.date)}</option>)}</NativeSelect></FormField>;
 }
 
 function formatNameDay(value:string){const [month,day]=value.split("-").map(Number);return new Date(2026,month-1,day).toLocaleDateString("fr-FR",{day:"numeric",month:"long"})}
