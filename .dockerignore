@@ -1,5 +1,16 @@
 node_modules
 .next
 .git
+.github
+.env*
+!.env.example
 prisma/data
+coverage
+playwright-report
+test-results
+e2e
+.idea
+.DS_Store
+*.db
+*.db-journal
 npm-debug.log

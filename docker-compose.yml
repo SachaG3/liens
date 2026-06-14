@@ -1,10 +1,11 @@
 services:
   liens:
-    build: .
-    image: liens:latest
-    container_name: liens
+    build:
+      context: .
+      target: runner
+    image: "${LIENS_IMAGE:-liens:latest}"
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${APP_HOST:-0.0.0.0}:${APP_PORT:-3000}:3000"
     environment:
       DATABASE_URL: "file:./data/family.db"
       SEED_DEMO_DATA: "${SEED_DEMO_DATA:-false}"
@@ -15,13 +16,30 @@ services:
       IMMICH_API_KEY: "${IMMICH_API_KEY:-}"
     volumes:
       - liens_data:/app/prisma/data
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    pids_limit: 256
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/login"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 30s
     restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   liens_data:
