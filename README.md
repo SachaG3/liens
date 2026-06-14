@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/status-développement_actif-blue" alt="Statut du projet">
   <img src="https://img.shields.io/badge/self--hosted-oui-success" alt="Auto-hébergeable">
   <img src="https://img.shields.io/badge/privacy-first-informational" alt="Privacy first">
-  <img src="https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs" alt="Next.js">
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs" alt="Next.js">
   <img src="https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma" alt="Prisma">
   <img src="https://img.shields.io/badge/SQLite-base_de_données-003B57?logo=sqlite" alt="SQLite">
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker">
@@ -40,6 +40,7 @@ Liens est un carnet relationnel privé et auto-hébergeable. Il aide à entreten
 - journal privé, sujets à reprendre, idées cadeaux et finances ;
 - import vCard/CSV et export des données ;
 - galerie facultative reliée à Immich ;
+- notifications de rappels par e-mail, Discord, Signal ou ntfy ;
 - comptes séparés avec isolation des données ;
 - interface responsive, thème clair et sombre.
 
@@ -96,6 +97,18 @@ Les variables peuvent être placées dans `.env`.
 | `NOMINIS_ENABLED` | `false` | Active les données externes de fêtes des prénoms |
 | `IMMICH_URL` | vide | URL de l’API Immich, par exemple `http://immich-server:2283/api` |
 | `IMMICH_API_KEY` | vide | Clé API Immich |
+| `APP_URL` | `http://localhost:3000` | URL publique utilisée dans les notifications |
+| `NOTIFICATION_CRON_SECRET` | vide | Secret protégeant le déclenchement automatique |
+| `NOTIFICATION_INTERVAL_SECONDS` | `3600` | Fréquence du service de notifications Docker |
+| `SMTP_HOST` | vide | Serveur SMTP utilisé pour les e-mails |
+| `SMTP_PORT` | `587` | Port SMTP |
+| `SMTP_SECURE` | `false` | Utilise TLS directement, généralement sur le port 465 |
+| `SMTP_USER` | vide | Identifiant SMTP facultatif |
+| `SMTP_PASSWORD` | vide | Mot de passe SMTP facultatif |
+| `SMTP_FROM` | vide | Adresse expéditrice des notifications |
+| `SIGNAL_API_URL` | vide | URL interne de `signal-cli-rest-api` |
+| `SIGNAL_SENDER` | vide | Numéro Signal émetteur au format international |
+| `NTFY_BASE_URL` | `https://ntfy.sh` | Serveur ntfy autorisé pour l’instance |
 | `LIENS_IMAGE` | `liens:latest` | Image Docker à lancer |
 
 En production, placez Liens derrière un reverse proxy HTTPS, utilisez `SESSION_COOKIE_SECURE=true`, fermez les inscriptions et limitez l’accès réseau selon votre besoin.
@@ -151,6 +164,39 @@ IMMICH_API_KEY="votre-cle"
 ```
 
 Les appels à Immich passent par le serveur Liens. La clé API n’est pas envoyée au navigateur.
+
+## Notifications
+
+Chaque compte choisit ses canaux depuis **Mon compte → Notifications** :
+
+- e-mail via le serveur SMTP configuré par l’administrateur ;
+- Discord via un webhook entrant ;
+- Signal via une instance [`signal-cli-rest-api`](https://github.com/bbernhard/signal-cli-rest-api) déjà liée ;
+- ntfy via un nom de sujet privé.
+
+Les messages contiennent uniquement le titre du rappel, la personne concernée et son échéance. Ils n’incluent jamais les notes privées. Un même canal ne reçoit qu’une fois un rappel pour une échéance donnée.
+
+Pour activer l’envoi automatique avec Docker, définissez un secret long puis démarrez le profil :
+
+```dotenv
+NOTIFICATION_CRON_SECRET="un-secret-long-et-aleatoire"
+APP_URL="https://liens.exemple.fr"
+```
+
+Un secret peut être généré avec `openssl rand -hex 32`.
+
+```bash
+docker compose --profile notifications up -d
+```
+
+Le service vérifie les rappels dus toutes les heures par défaut. Un ordonnanceur externe peut aussi appeler :
+
+```bash
+curl -X POST -H "Authorization: Bearer $NOTIFICATION_CRON_SECRET" \
+  https://liens.exemple.fr/api/notifications/dispatch
+```
+
+Pour l’e-mail, renseignez au minimum `SMTP_HOST` et `SMTP_FROM`. Pour Signal, renseignez `SIGNAL_API_URL` et `SIGNAL_SENDER`. Le serveur ntfy est défini par `NTFY_BASE_URL`. Chaque compte configure ensuite son destinataire, son webhook Discord ou son sujet ntfy dans l’interface.
 
 ## Développement
 

@@ -18,3 +18,5 @@ Les mainteneurs confirmeront la réception, évalueront l’impact et préparero
 Les problèmes d’autorisation entre comptes, d’exposition de données personnelles, de gestion de session, d’import de fichiers et de contournement des inscriptions fermées sont considérés comme prioritaires.
 
 L’administrateur d’une instance reste responsable du reverse proxy HTTPS, des accès réseau, des secrets, des mises à jour et des sauvegardes.
+
+Les préférences de notification peuvent contenir un webhook Discord, une adresse e-mail et des numéros de téléphone. Elles sont stockées dans la base SQLite : protégez et chiffrez les sauvegardes qui la contiennent.
