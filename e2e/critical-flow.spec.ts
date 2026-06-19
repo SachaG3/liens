@@ -35,3 +35,11 @@ test("parcours principal et isolation entre comptes", async ({ page }) => {
   const response = await page.goto(contactPath);
   expect(response?.status()).toBe(404);
 });
+
+test("page 404 lisible sur une route inconnue", async ({ page }) => {
+  const response = await page.goto("/ce-chemin-n-existe-pas");
+
+  expect(response?.status()).toBe(404);
+  await expect(page.getByRole("heading", { name: "Page introuvable" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Accueil" })).toBeVisible();
+});
