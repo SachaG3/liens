@@ -5,6 +5,7 @@ import { NavLinks } from "@/components/nav-links";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { GlobalSearch } from "@/components/global-search";
+import { InstallPrompt } from "@/components/install-prompt";
 import { db } from "@/lib/db";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { Brand } from "@/components/brand";
@@ -29,6 +30,6 @@ export async function Shell({ children }: { children: React.ReactNode }) {
       <NavLinks/>
       <div className="mt-auto border-t pt-4"><div className="flex items-center gap-2 px-2"><ProfileAvatar photo={user.photo} name={user.name} className="size-8"/><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{user.name}</p><p className="truncate text-xs text-muted-foreground">{user.email}</p></div><ThemeToggle/><form action={logout}><Button type="submit" variant="ghost" size="icon-sm" title="Déconnexion"><LogOut/></Button></form></div></div>
     </aside>
-    <div className="w-full md:ml-60"><header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/90 px-4 backdrop-blur md:px-8"><Brand className="md:hidden"/><GlobalSearch items={searchItems}/><div className="flex items-center gap-1 md:hidden"><ThemeToggle/><form action={logout}><Button type="submit" variant="ghost" size="icon-sm"><LogOut/></Button></form></div></header><main className="px-4 py-8 pb-24 md:px-8 md:pb-8 lg:px-12">{children}</main><div className="fixed inset-x-3 bottom-3 z-20 rounded-xl border bg-card p-1.5 shadow-lg md:hidden"><NavLinks mobile/></div></div>
+    <div className="w-full md:ml-60"><header className="sticky top-0 z-20 flex min-h-14 items-center justify-between border-b bg-background/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur md:h-14 md:px-8 md:pt-0"><Brand className="md:hidden"/><GlobalSearch items={searchItems}/><div className="flex items-center gap-1 md:hidden"><ThemeToggle/><form action={logout}><Button type="submit" variant="ghost" size="icon-sm"><LogOut/></Button></form></div></header><InstallPrompt/><main className="px-4 py-8 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:pb-8 lg:px-12">{children}</main><div className="fixed inset-x-3 z-20 rounded-xl border bg-card p-1.5 shadow-lg md:hidden" style={{bottom:"calc(0.75rem + env(safe-area-inset-bottom))"}}><NavLinks mobile/></div></div>
   </div>;
 }
